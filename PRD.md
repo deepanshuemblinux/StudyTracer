@@ -190,11 +190,13 @@ Reusable template retrieval behavior in V1:
   - `question type` when inferable
 - After metadata-based narrowing, the system uses AI/RAG-style similarity matching over stored reusable-template question representations to identify the top reusable template candidates for each question.
 - The system shows the `top 3` reusable template candidates per question.
+- Reusable question-template candidates should be shown only if they cross a fixed global minimum match threshold in V1.
 - If no strong reusable candidate is found, the system shows only the fresh AI-generated mapping/rubric suggestion.
 - Retrieval runs automatically and also supports manual re-run by the creator.
 - Retrieval runs again if assignment metadata is changed.
 - Retrieval runs again if the parsed question changes or the uploaded file is replaced.
 - For an uploaded question, the system derives a comparable question representation from the uploaded image/PDF; the creator does not manually provide a retrieval pattern.
+- The minimum match threshold should be system-controlled and not user-configurable in V1.
 
 Two retrieval layers operate during question authoring in V1:
 - `Reusable question-template retrieval`
@@ -207,6 +209,7 @@ Two retrieval layers operate during question authoring in V1:
 These two retrieval layers should run separately but converge into one coherent AI-generated suggestion for the creator.
 - The creator should not need to manually manage two different retrieval systems.
 - The creator should see one AI suggestion, optionally accompanied by a compact provenance summary.
+- Diagnostic-dimension-template retrieval should also use thresholding in V1 so that weak scaffold matches do not influence the AI-generated rubric suggestion.
 
 Reusable template retrieval flow in V1:
 1. Creator enters required assignment-level metadata.
@@ -230,6 +233,23 @@ During authoring, the creator sees:
 This means the creator is not forced to accept either the AI-generated structure or the reuse suggestion as-is. The creator can compare both, modify them, combine parts of them, or create a new finalized version when needed. The final saved assignment should therefore contain human-reviewed mappings and rubric definitions, even when AI performed most of the initial drafting.
 
 Assignment-level concept summaries are derived from question-level mappings, while assignment-level diagnostic understanding is inferred from question-level diagnostic-dimension definitions and evidence.
+
+In V1, the system should store a derived `assignment concept coverage summary`.
+- This is a stored derived summary, not an independently authored object.
+- The creator may review it, but may not edit it directly.
+- Minimum structure:
+  - `assignment_id`
+  - `subject`
+  - `education_board`
+  - `class_grade`
+  - `chapter`
+  - `concept_summaries[]`
+- Each `concept_summary` should contain:
+  - `concept_name` or `concept_id`
+  - `linked_question_ids[]`
+  - `linked_question_count`
+  - `covered_diagnostic_dimensions[]`
+  - optional `summary_notes`
 
 #### Publishing Permissions and Ownership
 - In V1, `admin/content creators` can create, edit, and publish assignments/assessments to inventory.
@@ -421,6 +441,7 @@ Question-specific rubric definitions may reference which reusable diagnostic-dim
 | `assigned_by` | Tutor identity assigning remediation | Required |
 | `assigned_at` | Assignment timestamp | System-generated |
 | `status` | Remediation-assignment lifecycle state | System-managed |
+| `attempt_completeness` | Attempt completeness marker for the remediation instance | System-managed |
 
 ### 6B. Entity States and Rules
 
@@ -456,6 +477,31 @@ Rules:
 - Non-evaluation-critical published fields such as title, instructions, or display formatting may be edited in place.
 - `archived` assignments cannot be newly assigned, but must remain available for historical reporting and prior evaluation visibility.
 - If any question remains incomplete, the assignment cannot move to `ready_to_publish` or `published`.
+
+#### Remediation Assignment Lifecycle Rules
+Remediation assignment instance states in V1:
+- `assigned`
+- `in_progress`
+- `submitted`
+- `evaluated`
+- `closed`
+
+Rules:
+- `assigned` means the tutor has assigned remediation and the student has not started work.
+- `in_progress` begins only when the student starts answer upload/work activity.
+- `submitted` means the student has submitted the remediation answers.
+- `evaluated` means tutor-approved evaluation of the remediation submission is complete.
+- `closed` is reached automatically immediately after tutor-approved evaluation in V1.
+- A remediation assignment instance must not be reopened or reassigned after evaluation/closure.
+- If more remediation is needed, the system must create a new student-specific remediation assignment instance.
+
+Attempt completeness in V1:
+- `attempt_completeness` should be stored as a separate top-level field on the remediation assignment instance.
+- Supported values:
+  - `not_attempted`
+  - `partially_attempted`
+  - `fully_attempted`
+- `attempt_completeness` should be system-determined in V1 based on whether remediation questions received student answers or were explicitly left not attempted.
 
 #### Publishing and Persistence Rules
 - Mappings must exist before an assignment/assessment is published.
@@ -688,6 +734,17 @@ Locked tutor review interaction model in V1:
 - If AI output is broadly wrong for a submission, the tutor should still be able to edit the evaluation manually in place.
 - Low-confidence or unclear-handwriting cases should appear as inline warning flags in the tutor review UI.
 - Alternate valid solving methods should be handled through normal tutor review and override, without a separate mandatory workflow in V1.
+- Low-confidence and unclear-handwriting flags are advisory only in V1 and do not block final publish.
+- Concept-level review/approval is required before final publish, but question-level explicit review is not required for every question.
+- If question-level evaluation is edited, the system should auto-refresh affected concept-level outputs to keep derived summaries consistent.
+- Tutors may directly edit concept-level status or remarks without first editing question-level evidence.
+- If final concept-level judgment diverges from currently derived question-level evidence, the system should flag the divergence, but it should remain advisory and must not block final publish.
+- Save-progress should allow incomplete review states, including partially reviewed concepts and partial question-level edits.
+- Minimum gate for final publish of a tutor-reviewed evaluation:
+  - every concept in the submission must have a final concept status
+  - required tutor-facing final fields must be present where applicable
+  - question-level explicit review is not required for every question
+  - advisory flags and divergence warnings do not block publish
 
 Tutor-editable objects in V1:
 - `final concept status`
