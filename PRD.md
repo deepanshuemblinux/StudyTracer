@@ -480,6 +480,71 @@ The release is positioned as a tutor-governed `diagnostic intelligence product` 
 
 ## 6. Information Architecture
 
+### 6.0 Product Workspaces and Navigation Hierarchy
+
+V1 uses a `hybrid workspace model` with role-based top-level product areas and function-specific modules within those areas.
+
+Official top-level workspaces in V1:
+- `Content Authoring`
+- `Template Library`
+- `Tutor Workspace`
+- `Student Workspace`
+- `Parent Workspace`
+
+#### Content Authoring
+Primary modules:
+- `Assignments List`
+- `Assignment Metadata Setup`
+- `Question Parsing and Review`
+- `Question Mapping and Rubric Editor`
+- `Assignment Summary and Publish`
+- `New Version Draft`
+
+Purpose:
+- Used by `admin/content creator` to create, prepare, version, and publish assignments/assessments.
+
+#### Template Library
+Primary modules:
+- `Question Templates`
+- `Diagnostic-Dimension Templates`
+
+Purpose:
+- Used by `admin/content creator` to govern reusable authoring assets.
+
+#### Tutor Workspace
+Primary modules:
+- `Assignments to Students`
+- `Submissions Queue`
+- `Submission Review Dashboard`
+- `Remediation Review and Assignment`
+- `Student History / Follow-up`
+
+Purpose:
+- Used by tutors to assign work, review AI output, finalize evaluation, and assign remediation.
+
+#### Student Workspace
+Primary modules:
+- `My Work`
+- `Work Detail / Submission`
+- `Feedback and Results`
+
+Information grouping rules:
+- `My Work` is a unified work list that includes `assignment`, `assessment`, and `remediation` items using explicit `work_type` labels.
+- A separate remediation-only student area is not required in V1.
+
+Purpose:
+- Used by students to complete assigned work, submit answers, and review tutor-approved outputs.
+
+#### Parent Workspace
+Primary modules:
+- `Student Selector`
+- `Current Results Summary`
+- `Remediation Visibility`
+- `Chronological History`
+
+Purpose:
+- Used by parents for read-only visibility into approved results and prior work history for linked students.
+
 ### 6A. Core Entities and Relationships
 
 #### Authoring and Mapping Foundation
@@ -783,28 +848,83 @@ Question-specific rubric definitions may reference which reusable diagnostic-dim
 - Remediation retrieval should first identify candidate source assignments and then filter/rank candidate questions within those assignments against the remediation targets.
 - Tutor remediation review should show source assignments grouped separately, with recommended questions preselected within each source assignment.
 - In V1, remediation may use questions from multiple source assignments.
-- After tutor approval, the system should create a single student-specific `remediation assignment instance` that may contain selected questions from multiple source assignments.
-- The remediation assignment instance is always student-specific in V1 and is not promoted into the shared inventory.
-- Source provenance for each remediation question must be preserved internally even when the student receives one combined remediation assignment instance.
-- In V1, question order inside the remediation assignment instance has no special pedagogical semantics; the student-facing order should preserve the final assembled order approved by the tutor/system.
+- After tutor approval, the system should create a single student-specific `work instance` with `work_type = remediation` that may contain selected questions from multiple source assignments.
+- A remediation `work instance` is always student-specific in V1 and is not promoted into the shared inventory.
+- Source provenance for each remediation question must be preserved internally even when the student receives one combined remediation work instance.
+- In V1, question order inside a remediation work instance has no special pedagogical semantics; the student-facing order should preserve the final assembled order approved by the tutor/system.
 - In V1, students do not need to see why each remediation question was selected.
 - In V1, parents should see a short tutor-approved remediation rationale at the remediation level.
 
-#### Remediation Assignment Instance Fields
+#### Work Instance Foundation
+
+The system should model a first-class student-specific `work instance` object for assigned work in V1.
+
+This common model should represent:
+- normal assigned `assignments`
+- normal assigned `assessments`
+- student-specific `remediation`
+
+Purpose:
+- A `published assignment/assessment` is the reusable inventory object.
+- A `work instance` is the student-specific assigned occurrence of that content.
+- A `submission` is the student's final answer package tied to that work instance.
+
+Relationship rules:
+- One `work instance` may reference one or more source assignments depending on `work_type`.
+- One `work instance` supports at most `one final submission` in V1.
+- `assignment`, `assessment`, and `remediation` remain visible as explicit `work_type` labels even though they share one common student-facing model.
+
+#### Work Instance Fields
 
 | Field | Purpose | Requirement |
 |---|---|---|
-| `remediation_instance_id` | Unique remediation-assignment instance identifier | System-generated |
+| `work_instance_id` | Unique student-specific work instance identifier | System-generated |
 | `student_id` | Student receiving remediation | Required |
-| `source_assignment_ids[]` | Source assignment references used to assemble remediation | Required |
-| `selected_question_ids[]` | Selected source-question references included in remediation | Required |
-| `target_concepts[]` | Concepts targeted by the remediation | Required |
-| `target_diagnostic_dimensions[]` | Diagnostic weaknesses targeted by the remediation | Required |
-| `tutor_approved_rationale` | Tutor-approved remediation rationale | Required for parent visibility |
-| `assigned_by` | Tutor identity assigning remediation | Required |
+| `assigned_by` | Tutor identity assigning the work instance | Required |
+| `work_type` | `assignment` / `assessment` / `remediation` | Required |
+| `source_assignment_ids[]` | Source assignment references used to construct the work instance | Required |
+| `selected_question_ids[]` | Selected source-question references included in the work instance | Optional for normal assignment/assessment; required when the work instance is question-selective |
 | `assigned_at` | Assignment timestamp | System-generated |
-| `status` | Remediation-assignment lifecycle state | System-managed |
-| `attempt_completeness` | Attempt completeness marker for the remediation instance | System-managed |
+| `due_at` | Optional due timestamp | Optional |
+| `assigned_by` | Tutor identity assigning remediation | Required |
+| `status` | Work-instance lifecycle state | System-managed |
+| `submission_id` | Linked final submission for the work instance | Optional until submitted |
+| `target_concepts[]` | Concepts targeted by the work instance when used for remediation | Optional for normal assignment/assessment; required for remediation |
+| `target_diagnostic_dimensions[]` | Diagnostic weaknesses targeted by the work instance when used for remediation | Optional for normal assignment/assessment; required for remediation |
+| `tutor_approved_rationale` | Tutor-approved rationale for remediation or assignment context | Optional for normal assignment/assessment; required for remediation parent visibility |
+| `attempt_completeness` | Attempt completeness marker for the work instance | System-managed |
+
+Notes:
+- For normal assignments and assessments, `source_assignment_ids[]` will usually contain exactly one published source assignment.
+- For remediation, `source_assignment_ids[]` may contain multiple source assignments and `selected_question_ids[]` becomes essential.
+- `assigned_by` should be stored once as the tutor identity responsible for assigning the student-facing work instance.
+- The `work instance` is the primary object surfaced in student `My Work`, tutor assignment/follow-up views, and parent chronological history.
+
+#### Evaluation Record Foundation
+
+The system should create a first-class `evaluation record` object for each submitted work instance after evaluation begins.
+
+Purpose:
+- The evaluation record is the official evaluated outcome container for one student-specific work instance.
+- It provides a single final evaluated artifact linking submission, question evidence, concept evaluations, final summary, and finalization metadata.
+
+Relationship rules:
+- One `work instance` may have at most one final `submission` in V1.
+- One final `submission` may produce one official `evaluation record`.
+- Student, parent, and tutor approved-output surfaces should anchor on the `evaluation record`, not assemble final state ad hoc from scattered lower-level records.
+
+Minimum evaluation record fields:
+- `evaluation_record_id`
+- `work_instance_id`
+- `submission_id`
+- `student_id`
+- `tutor_id`
+- `work_type`
+- `evaluation_status`
+- `final_overall_summary`
+- `finalized_at`
+- `linked_concept_evaluation_ids[]`
+- `linked_question_evidence_ids[]`
 
 ### 6B. Entity States and Rules
 
@@ -841,8 +961,8 @@ Rules:
 - `archived` assignments cannot be newly assigned, but must remain available for historical reporting and prior evaluation visibility.
 - If any question remains incomplete, the assignment cannot move to `ready_to_publish` or `published`.
 
-#### Remediation Assignment Lifecycle Rules
-Remediation assignment instance states in V1:
+#### Work Instance Lifecycle Rules
+Work instance states in V1:
 - `assigned`
 - `in_progress`
 - `submitted`
@@ -850,21 +970,27 @@ Remediation assignment instance states in V1:
 - `closed`
 
 Rules:
-- `assigned` means the tutor has assigned remediation and the student has not started work.
+- `assigned` means the tutor has assigned the work instance and the student has not started work.
 - `in_progress` begins only when the student starts answer upload/work activity.
-- `submitted` means the student has submitted the remediation answers.
+- `submitted` means the student has submitted final answers for the work instance.
 - `evaluated` means tutor-approved evaluation of the remediation submission is complete.
 - `closed` is reached automatically immediately after tutor-approved evaluation in V1.
-- A remediation assignment instance must not be reopened or reassigned after evaluation/closure.
-- If more remediation is needed, the system must create a new student-specific remediation assignment instance.
+- A work instance must not be reopened or reassigned after evaluation/closure.
+- If more remediation is needed, the system must create a new student-specific work instance with `work_type = remediation`.
 
 Attempt completeness in V1:
-- `attempt_completeness` should be stored as a separate top-level field on the remediation assignment instance.
+- `attempt_completeness` should be stored as a separate top-level field on the work instance.
 - Supported values:
   - `not_attempted`
   - `partially_attempted`
   - `fully_attempted`
-- `attempt_completeness` should be system-determined in V1 based on whether remediation questions received student answers or were explicitly left not attempted.
+- `attempt_completeness` should be system-determined in V1 based on whether assigned questions received student answers or were explicitly left not attempted.
+
+Work instance type rules:
+- `assignment`, `assessment`, and `remediation` share one common lifecycle model in V1.
+- `work_type` affects source-content structure, rationale requirements, and parent visibility semantics, but does not require a separate top-level lifecycle state model.
+- For `remediation`, `target_concepts[]`, `target_diagnostic_dimensions[]`, and `tutor_approved_rationale` are required.
+- For normal `assignment` and `assessment`, those remediation-specific fields may be empty.
 
 #### Publishing and Persistence Rules
 - Mappings must exist before an assignment/assessment is published.
@@ -924,6 +1050,7 @@ Recommended diagnostic dimension vocabularies:
 | Field | Purpose | Requirement |
 |---|---|---|
 | `submission_id` | Unique submission identifier | System-generated |
+| `work_instance_id` | Parent student-specific work instance reference | Required |
 | `assignment_id` | Parent assignment reference | Required |
 | `student_id` | Student identity | Required |
 | `tutor_id` | Assigned tutor identity | Required |
@@ -932,6 +1059,9 @@ Recommended diagnostic dimension vocabularies:
 | `submitted_at` | Submission timestamp | System-generated |
 | `evaluation_status` | Evaluation lifecycle state | System-managed |
 | `finalized_at` | Finalization timestamp | System-generated on finalization |
+
+Submission relationship note:
+- `assignment_id` remains useful for source-content lineage, but the primary operational parent of a submission is `work_instance_id`.
 
 #### Confirmed Question Evidence Fields
 
