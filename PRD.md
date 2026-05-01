@@ -101,11 +101,264 @@ StudyTracer must enable tutor-reviewed, concept-first evaluation of final handwr
 
 ## 3. Goals and Non-Goals
 
-Pending.
+### 3.1 Business Goals
+
+#### MUST
+- Build a reusable authoring and evaluation foundation that can scale across future content volume without requiring every assignment question to be configured from scratch.
+- Enable high-precision, evidence-backed diagnostic evaluation at the `concept` and `diagnostic-dimension` level for handwritten `math` and `science` final submissions.
+
+#### SHOULD
+- Reduce tutor effort over time through structured AI-assisted review, while accepting that early V1 may prioritize evaluation consistency and diagnosis quality over immediate review-time reduction.
+- Improve the quality and specificity of remediation recommendations by linking tutor-approved concept and diagnostic-dimension weaknesses to targeted next-step assignments.
+
+#### COULD
+- Establish directional operating metrics and baseline instrumentation for later KPI-setting, while deferring numeric success thresholds to a future operating plan.
+
+### 3.2 User Outcome Goals
+
+#### Tutors
+#### MUST
+- Tutors must receive AI-generated draft evaluations that are specific enough to review and finalize at the `concept` and `diagnostic-dimension` level, with linked question evidence.
+- Tutors must retain full control to review, edit, override, and finalize all official evaluation outputs.
+
+#### SHOULD
+- Tutors should be able to complete review with greater consistency and less manual reconstruction of student reasoning than a fully manual workflow.
+
+#### Students
+#### MUST
+- Students must receive tutor-approved, targeted diagnostic feedback that identifies what went wrong at the concept and diagnostic-dimension level.
+- Students must receive more targeted next-step remediation than broad chapter-level restudy guidance.
+
+#### SHOULD
+- Student-facing outputs should make weaknesses actionable without exposing internal AI uncertainty or non-finalized system judgments.
+
+#### Parents
+#### SHOULD
+- Parents should receive tutor-approved chapter-level and concept-level visibility into weak areas, remarks, and remediation rationale.
+
+### 3.3 Product Outcome Goals
+
+#### MUST
+- The product must support both `authoring outcomes` and `evaluation outcomes` as first-class goals in V1.
+- Authoring outcomes must ensure that published assignments contain question-level concept mappings and diagnostic-dimension rubric definitions that are complete enough for downstream evaluation.
+- Evaluation outcomes must ensure that each final submission can produce tutor-reviewable concept judgments, diagnostic-dimension findings, and remediation suggestions backed by question evidence.
+- When evidence quality is weak, ambiguous, or incomplete, the product must surface uncertainty clearly and preserve tutor control rather than silently asserting overconfident judgments.
+
+#### SHOULD
+- The product should improve downstream reuse by allowing finalized authoring structures to inform future AI suggestions and governed reusable templates.
+- The product should make remediation generation a reliable downstream consequence of diagnosis quality, not an isolated workflow.
+
+### 3.4 Non-Goals
+
+#### MUST NOT
+- V1 must not function as a fully autonomous grading or evaluation system.
+- V1 must not finalize official evaluation outputs without tutor review.
+- V1 must not support iterative draft review or work-in-progress feedback loops.
+- V1 must not provide real-time step-by-step tutoring or interactive problem-solving assistance.
+- V1 must not expand beyond handwritten `math` and `science` in this release.
+- V1 must not include institution-wide analytics or broad administrative reporting as a release goal.
+- V1 must not include adaptive learning-path orchestration beyond targeted remediation suggestion and assignment.
+
+#### SHOULD NOT
+- V1 should not optimize primarily for immediate tutor time savings if doing so weakens diagnostic precision or remediation quality.
+- V1 should not treat parent visibility as a primary release success criterion ahead of tutor workflow quality and diagnosis quality.
+
+### 3.5 Release Positioning
+
+#### MUST
+- V1 must be positioned primarily as a `diagnostic intelligence product`.
+
+Positioning clarification:
+- The tutor-governed workflow is an enabling control layer that ensures quality and trust.
+- Remediation is a downstream action layer that depends on the quality of tutor-approved diagnosis.
+- The core differentiated value in V1 is evidence-backed concept and diagnostic-dimension evaluation of handwritten submissions.
+
+### 3.6 Assumptions
+
+- High-quality reusable authoring structures will improve both future content creation efficiency and downstream evaluation consistency.
+- Early tutor adoption is more likely if the system produces diagnostically useful draft outputs, even if tutors still make frequent edits in V1.
+- More precise concept and diagnostic-dimension diagnosis will produce more useful remediation recommendations than chapter-level weakness labeling.
+- Numeric success targets can be defined later once baseline operational data exists.
+
+### 3.7 Risks
+
+- If tutor editing remains too frequent for too long, the reusable foundation may be strong but workflow adoption may stall.
+- If authoring quality is inconsistent, evaluation precision and remediation quality will degrade regardless of AI capability.
+- If uncertainty signaling is too weak, tutors may overtrust incorrect AI judgments.
+- If uncertainty signaling is too aggressive, tutors may lose confidence in the system's usefulness.
+- If remediation suggestions are specific but low quality, the product may appear diagnostically strong but instructionally weak.
+
+### 3.8 Unresolved Decisions
+
+- Numeric KPI thresholds for tutor efficiency, evaluation precision, and remediation usefulness are deferred to a future operating plan.
+- The exact measurement method for `diagnostic precision` is not yet defined and may require a tutor-agreement or benchmark-review framework.
+- The exact measurement method for `remediation quality` is not yet defined and may require a later completion/outcome loop.
 
 ## 4. Users and Personas
 
-Pending.
+### 4.1 Actor Model
+
+Official V1 actors:
+- `admin/content creator`
+- `tutor`
+- `student`
+- `parent`
+
+Role-model decisions locked for V1:
+- `admin` and `content creator` are a single persona in V1.
+- `tutor` is a single role in V1; no tutor sub-roles exist in the release scope.
+- Each submission has exactly `one assigned tutor`.
+- Parent access is `read-only`.
+- One parent account may be linked to `multiple students`.
+- Additional actors such as `school admin`, `internal QA reviewer`, `content approver` as a separate role, and `operations/support staff` are out of scope as formal V1 personas.
+
+### 4.2 Persona Priority
+
+Persona priority for V1:
+1. `Tutor` as the primary persona
+2. `Admin/Content Creator` as secondary but operationally critical
+3. `Student` as downstream end user
+4. `Parent` as read-only visibility stakeholder
+
+This priority order should drive workflow design, requirement tradeoffs, and future diagram extraction.
+
+### 4.3 Persona Definitions and JTBD
+
+#### Persona: Tutor
+
+Primary role in V1:
+- Review AI output efficiently and finalize accurate evaluation.
+
+Primary jobs-to-be-done:
+- Review AI-generated concept and diagnostic-dimension evaluations against question evidence.
+- Edit, override, and finalize official submission outcomes.
+- Approve, modify, or assign targeted remediation based on tutor-approved diagnosis.
+
+Permissions:
+- View and assign all published inventory in V1 unless a future business access constraint is introduced.
+- Review student submissions assigned to them.
+- Edit question-level and concept-level evaluation outputs during tutor review.
+- Finalize submission-level evaluation outputs.
+- Approve and assign student-specific remediation assignments.
+
+Constraints:
+- Tutors cannot publish assignments or assessments to inventory.
+- Tutors cannot create or publish new official versions of published assignments.
+- Tutors resolve poor AI output or ambiguous evidence within the review workflow; no separate escalation role exists in V1.
+
+Success criteria for this persona:
+- Can review AI output with sufficient specificity to finalize accurate concept and diagnostic-dimension judgments.
+- Can preserve tutor control when AI confidence is weak or evidence is ambiguous.
+- Can assign targeted remediation without leaving the core review workflow.
+
+#### Persona: Admin/Content Creator
+
+Primary role in V1:
+- Own both publishable content creation and reusable template/rubric quality.
+
+Primary jobs-to-be-done:
+- Create high-quality publishable assignments and assessments.
+- Review and finalize question-level concept mappings and rubric definitions before publish.
+- Maintain the governed reusable template and diagnostic-dimension scaffold library.
+- Create and publish new official versions when evaluation-critical changes are required.
+
+Permissions:
+- Create, edit, and publish assignments and assessments to inventory.
+- Review AI-generated and reusable-template-generated authoring suggestions.
+- Accept, edit, merge, or ignore authoring suggestions before finalizing question setup.
+- Explicitly promote finalized patterns into reusable template libraries.
+- Create and publish new official versions of content.
+
+Constraints:
+- Shared reusable templates are governed assets and remain under admin/content control in V1.
+- Publish eligibility depends on completed question-level mapping and rubric setup, not on tutor action.
+
+Success criteria for this persona:
+- Can prepare production-ready content that supports reliable downstream evaluation.
+- Can improve reuse quality over time without losing assignment-specific accuracy.
+
+#### Persona: Student
+
+Primary role in V1:
+- Submit handwritten work reliably.
+
+Primary jobs-to-be-done:
+- Upload handwritten answers per question with correct answer-to-question association.
+- Mark questions as `not attempted` when applicable.
+- Review tutor-approved concept-status-driven feedback and assigned remediation.
+- Complete assigned remediation submissions.
+
+Permissions:
+- Access assigned assignments and remediation assignments intended for them.
+- Upload, reorder, replace, move, and submit per-question answer images before final submit.
+- View tutor-approved concept status, tutor-approved feedback, and assigned remediation.
+
+Constraints:
+- Students may submit only one final submission per assignment in V1.
+- Students do not see non-finalized AI outputs.
+- Students do not see internal uncertainty handling or non-approved diagnostic drafts.
+
+Success criteria for this persona:
+- Can submit answers accurately from a mobile-first workflow.
+- Can understand tutor-approved weaknesses through structured concept status plus tutor-approved feedback.
+- Can identify next-step remediation assigned to them.
+
+#### Persona: Parent
+
+Primary role in V1:
+- Monitor weak areas and tutor remarks.
+
+Primary jobs-to-be-done:
+- Review tutor-approved chapter-level and concept-level weak areas for linked students.
+- Review tutor-approved remarks, remediation rationale, and assigned remediation visibility.
+
+Permissions:
+- Read-only access to linked students' approved outputs.
+- Visibility into chapter-level weaknesses, concept-level weaknesses, tutor remarks, remediation rationale, and assigned remediation items.
+
+Constraints:
+- Parents cannot edit evaluation outputs, submit work, or assign remediation.
+- Parents do not see question-level raw evidence or internal AI review states.
+
+Success criteria for this persona:
+- Can understand where a student is struggling.
+- Can see what remediation has been assigned without entering the tutor workflow.
+
+### 4.4 Role-Based Visibility and Permission Summary
+
+| Persona | Create/Publish Content | Assign Content | Submit Work | Review/Finalize Evaluation | View Student Outputs | View Remediation |
+|---|---|---|---|---|---|---|
+| `Admin/Content Creator` | Yes | No | No | No | Limited, only as needed for content/admin context | No direct learner workflow role |
+| `Tutor` | No | Yes | No | Yes | Yes, for assigned students/submissions | Yes, can approve/assign |
+| `Student` | No | No | Yes | No | Yes, own tutor-approved outputs only | Yes, own assigned remediation |
+| `Parent` | No | No | No | No | Yes, linked students' approved chapter/concept outputs only | Yes, linked students' assigned remediation visibility |
+
+### 4.5 Role-Based Behavior Rules
+
+- Tutor is the primary operating persona for the evaluation workflow.
+- Admin/content creator is the primary operating persona for the authoring and publishing workflow.
+- Students are downstream participants in submission and remediation workflows, not in evaluation approval workflows.
+- Parents are visibility-only stakeholders in V1.
+- Tutor-owned evaluation and admin/content-owned publishing are intentionally separated to preserve governance and quality control.
+
+### 4.6 Assumptions
+
+- A single-tutor ownership model is sufficient for V1 review accountability.
+- Parent read-only visibility is enough to support parent trust and follow-up in the first release.
+- Tutor access to all published inventory is acceptable in V1 because no institutional access segmentation is currently defined.
+- Formal personas outside the core four actors are not required to make V1 workable.
+
+### 4.7 Risks
+
+- If tutor permissions are too broad in future multi-organization contexts, inventory access may need to be constrained later.
+- If parent expectations extend beyond visibility into action-taking or messaging, the read-only model may feel incomplete.
+- If content governance needs separation of duties later, the combined admin/content persona may need to split into multiple roles.
+- If one-tutor ownership proves operationally limiting, later collaborative review flows may be required.
+
+### 4.8 Unresolved Decisions
+
+- No blocking unresolved persona decisions remain for V1.
+- Future organizational access segmentation for tutors may need to be revisited if the product expands to multi-institution deployment.
 
 ## 5. Scope
 
@@ -114,6 +367,116 @@ Pending.
 - Tutors can assign published worksheets/assignments/assessments to students.
 - Each question must be fully prepared before publish with confirmed `concept mapping` and question-level `diagnostic-dimension rubric definitions` for the supported evaluation dimensions.
 - Assignments and assessments share the same structure in V1 and differ only by label/workflow context.
+
+### 5.1 Release Boundary
+
+V1 is a `full closed-loop` release that includes:
+- authoring and publishing of assignments/assessments
+- reusable-template and diagnostic-dimension scaffold governance
+- tutor assignment of published work
+- student handwritten submission
+- AI-assisted evaluation
+- tutor review and finalization
+- remediation suggestion, approval, and assignment
+- student remediation submission
+- remediation evaluation and tutor finalization
+- student and parent visibility into tutor-approved outputs
+
+The release is positioned as a tutor-governed `diagnostic intelligence product` with downstream remediation execution, not as a general-purpose learning platform or autonomous grading system.
+
+### 5.2 In-Scope
+
+#### Authoring and Publishing
+- Admin/content creator creation of assignments and assessments for handwritten `math` and `science`.
+- Assignment-level metadata entry required for authoring context.
+- AI-assisted question parsing, concept mapping, rubric suggestion, and reusable-template suggestion.
+- Human review, edit, merge, and finalization of question mappings and rubric definitions before publish.
+- Publishing of prepared assignments/assessments to shared inventory.
+- Creation of new official content versions by `admin/content creator` when evaluation-critical changes are required.
+
+#### Reusable Foundation and Governance
+- Reusable question-template retrieval during authoring.
+- Diagnostic-dimension template retrieval during authoring.
+- Admin/content governance of reusable templates and diagnostic-dimension scaffolds.
+- Explicit promotion of finalized patterns into reusable libraries.
+- Lightweight operational visibility for admin/content users into draft readiness and incomplete setup states.
+
+#### Tutor Workflow
+- Tutor assignment of published inventory to students.
+- Tutor review of AI-generated concept-level and question-level evaluation outputs.
+- Tutor editing, override, save-progress, and submission-level finalization.
+- Tutor review, approval, edit, and assignment of remediation.
+- Lightweight tutor follow-up visibility across prior submission/remediation context sufficient to support continuity.
+
+#### Student Workflow
+- Mobile-first per-question handwritten answer submission.
+- Multiple-image answer upload per question, reorder, replace, delete, and move-before-submit behavior.
+- Explicit `not attempted` handling per question.
+- Submission of one final assignment response per assignment in V1.
+- Submission of assigned remediation work.
+- Visibility into tutor-approved concept status, tutor-approved feedback, and assigned remediation.
+
+#### Parent Workflow
+- Read-only visibility into tutor-approved chapter-level and concept-level outputs.
+- Visibility into tutor-approved remarks, remediation rationale, and assigned remediation items.
+- Lightweight chronological history of tutor-approved assignments and remediation items with their concept statuses.
+
+#### Evaluation and Remediation
+- AI-assisted question-level evidence generation.
+- AI-assisted concept-level and diagnostic-dimension evaluation generation.
+- Tutor-governed finalization of all official evaluation outputs.
+- AI-assisted remediation suggestion based on tutor-reviewed concept and diagnostic-dimension weaknesses.
+- Assembly of student-specific remediation assignment instances from published inventory.
+- Evaluation and tutor finalization of remediation submissions using the same concept-first diagnostic model.
+
+#### Graceful Handling Within Scope
+- Graceful handling of common real-world input quality problems, including poor handwriting, ambiguous evidence, missing answer evidence, low-confidence interpretation, and answer-to-question ambiguity.
+- Uncertainty signaling and advisory warnings for tutors when evidence quality is weak.
+- Rejection or prevention of unsupported subjects outside handwritten `math` and `science`.
+
+### 5.3 Out of Scope
+
+- Autonomous evaluation finalization without tutor review.
+- Iterative draft review or work-in-progress feedback.
+- Real-time tutoring, interactive solving help, or student study-assistant workflows.
+- Support for subjects beyond handwritten `math` and `science`.
+- Institution-wide analytics dashboards or administrative reporting surfaces.
+- Parent messaging, acknowledgements, approval actions, or other parent-interactive workflows.
+- Tutor collaboration, co-review, or multi-reviewer evaluation workflows.
+- Broad tutor case-management or intervention-planning workspaces.
+- Student progress workspaces, study planning, or broad learning-history features beyond assigned work and approved feedback.
+- Advanced trend analytics beyond lightweight chronological history.
+- Advanced content governance such as approval chains, bulk editing, or governance dashboards.
+- Broad automation such as AI auto-approval, auto-publish, or low-risk auto-finalization.
+- Adaptive learning-path orchestration beyond targeted remediation suggestion and assignment.
+
+### 5.4 Release Boundary Clarifications
+
+- `Assignments` and `assessments` are both in scope and share one common structural model in V1.
+- `Remediation` is not suggestion-only; the full remediation assignment lifecycle is in scope through tutor-approved evaluation and closure.
+- `Parent history` in scope means chronological visibility into prior tutor-approved assignments/remediation and their concept statuses, not advanced trend analysis or predictive progress scoring.
+- `Tutor follow-up visibility` in scope means lightweight continuity context, not a full longitudinal case-management product.
+- `Admin/content operational visibility` in scope means basic readiness and incomplete-setup visibility, not advanced governance analytics.
+- `Assistive AI` in scope means suggestion, evaluation drafting, retrieval, and uncertainty signaling only; AI does not become the final authority for official outputs.
+
+### 5.5 Scope Assumptions
+
+- A full closed loop is necessary to validate whether diagnosis quality meaningfully improves remediation quality.
+- Lightweight historical visibility is sufficient for parents and tutors in V1 without requiring deeper progress analytics.
+- Content governance can remain lightweight in V1 while still protecting quality through role restrictions and publish gates.
+- Common input-quality problems must be treated as normal operating conditions, not exceptional edge cases outside the product boundary.
+
+### 5.6 Scope Risks
+
+- Full closed-loop scope increases delivery complexity because remediation introduces a second evaluation cycle.
+- Lightweight historical visibility may create stakeholder demand for deeper progress analytics sooner than planned.
+- Broad tutor inventory access may become misaligned if future deployments introduce institutional segmentation.
+- Graceful handling of poor-quality inputs may still create review burden if ambiguity frequency is high.
+
+### 5.7 Unresolved Scope Decisions
+
+- No blocking scope decisions remain for V1.
+- Future expansion decisions remain open for organizational access segmentation, advanced trend analytics, and broader tutor or parent workspaces.
 
 ## 6. Information Architecture
 
@@ -576,6 +939,7 @@ Recommended diagnostic dimension vocabularies:
 |---|---|---|
 | `submission_question_id` | Submission-specific question evidence record | System-generated |
 | `question_id` | Source question reference | Required |
+| `submitted_answer_images[]` | Original student-submitted answer images for the question, preserved in submitted order | Required unless the question is explicitly `not attempted` |
 | `ai_question_evaluation` | AI's structured evaluation object for the question across applicable concepts and diagnostic dimensions | Required |
 | `final_tutor_question_evaluation` | Tutor-approved structured evaluation object for the question across applicable concepts and diagnostic dimensions | Required before finalization |
 | `ai_question_evidence_summary` | AI-generated evidence summary for the question | Required |
@@ -719,18 +1083,32 @@ Parents should see only `chapter-level` and `concept-level` tutor-approved outpu
 
 Tutor review hierarchy for each submission:
 - Submission header with student, assignment, subject, education board, class, chapter, submission date, and finalize status
+- Submission summary dashboard
 - Concept review panels
 - Expandable supporting question views under each concept
 
 Tutor review is concept-first, with question evidence available underneath.
 
 Locked tutor review interaction model in V1:
+- The default tutor landing view is a `submission summary dashboard`.
+- The submission summary dashboard should surface:
+  - overall submission status
+  - concept list with AI-suggested statuses
+  - flagged low-confidence / unclear-handwriting items
+  - unanswered / not-attempted questions
+  - remediation suggestion presence
+  - submission-level readiness for final publish
 - The primary review unit is the `concept panel`.
+- The dashboard should recommend a concept review order, but tutors may open any concept in any order.
+- Recommended review order should prioritize flagged items first and then weaker concepts by AI-indicated severity.
 - Supporting question evidence should remain expandable underneath each concept and should be reviewed when needed rather than by default.
+- When a tutor opens a concept panel, flagged supporting questions should be expanded by default and non-flagged supporting questions should remain collapsed.
 - The tutor review workflow should support `bulk approve all AI suggestions, then edit exceptions`.
 - Tutors should also be able to review and edit concepts individually before final publish.
 - The official finalization point is at the `submission level`, even though concept-level review happens within the workflow.
 - Partial tutor progress should be savable before final publish.
+- Concept-level edits should auto-save as fields are changed.
+- Question-level edits inside supporting questions should also auto-save.
 - If AI output is broadly wrong for a submission, the tutor should still be able to edit the evaluation manually in place.
 - Low-confidence or unclear-handwriting cases should appear as inline warning flags in the tutor review UI.
 - Alternate valid solving methods should be handled through normal tutor review and override, without a separate mandatory workflow in V1.
@@ -759,10 +1137,23 @@ Each concept review panel should show:
 - `AI Suggested Concept Status`
 - `Tutor Editable Final Concept Status`
 - `Supporting Questions`
+- `Original Student-Submitted Answer Images` for each supporting question, preserved in submitted order and viewable in larger preview
 - `AI Concept-Level Reasoning Summary`
 - `Diagnostic Dimension Findings`
 - `Final Tutor Remarks`
 - optional `Recommended Remediation`
+
+Concept-level completion rules in V1:
+- The system should show a concept-level completion indicator.
+- A concept is complete for final publish when it has:
+  - `final_concept_status`
+  - `final_diagnostic_dimension_findings[]`
+  - `final_tutor_remarks`
+  - `remediation_decision`
+
+Submission-level completion rules in V1:
+- The system should show a submission-level readiness indicator derived from concept-level completion.
+- The tutor should be able to see which concepts remain incomplete before final publish.
 
 ### Locked Student Submission Model
 
