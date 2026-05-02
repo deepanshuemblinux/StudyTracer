@@ -8,14 +8,16 @@
 - [5. Scope](#5-scope)
 - [6. Domain Model (Core Entities & Relationships)](#6-domain-model-core-entities--relationships)
 - [7. Information Architecture](#7-information-architecture)
-- [8. User Flow Catalog](#8-user-flow-catalog)
-- [9. Functional Requirements](#9-functional-requirements)
-- [10. Non-Functional Requirements](#10-non-functional-requirements)
-- [11. UX Requirements](#11-ux-requirements)
-- [12. Integrations and Dependencies](#12-integrations-and-dependencies)
-- [13. Risks and Mitigations](#13-risks-and-mitigations)
-- [14. Acceptance Criteria Matrix](#14-acceptance-criteria-matrix)
-- [15. Open Questions and Decision Log](#15-open-questions-and-decision-log)
+- [8. Lifecycle and State Model](#8-lifecycle-and-state-model)
+- [9. User Flow Catalog](#9-user-flow-catalog)
+- [10. Functional Requirements](#10-functional-requirements)
+- [11. Non-Functional Requirements](#11-non-functional-requirements)
+- [12. UX Requirements](#12-ux-requirements)
+- [13. Integrations and Dependencies](#13-integrations-and-dependencies)
+- [14. Risks and Mitigations](#14-risks-and-mitigations)
+- [15. Acceptance Criteria Matrix](#15-acceptance-criteria-matrix)
+- [16. Open Questions and Decision Log](#16-open-questions-and-decision-log)
+- [17. Data Model / Implementation Notes](#17-data-model--implementation-notes)
 
 ## 1. Document Control
 
@@ -800,9 +802,226 @@ Primary modules:
 Purpose:
 - Used by parents for read-only visibility into approved results and prior work history for linked students.
 
-## 8. User Flow Catalog
+## 8. Lifecycle and State Model
 
-### 8.1 Tutor Assignment and Evaluation
+### 8.1 Purpose
+This section defines lifecycle states, allowed transitions, transition triggers, blocking rules, and finalization or closure rules for core domain entities in StudyTracer. It focuses on domain-entity state behavior only and excludes UI screen states and database column definitions.
+
+### 8.2 Lifecycle Coverage
+
+This section defines formal lifecycle models for:
+- `Assignment`
+- `Question`
+- `Work Instance`
+- `Submission`
+- `Evaluation Record`
+- `Remediation Recommendation`
+
+Lifecycle modeling approach:
+- The section is structured entity-by-entity.
+- Each entity includes states, transitions, triggers, material guard conditions, and entity-specific finalization or closure rules.
+- Transition triggers should name the responsible actor or system owner where applicable.
+- Guard conditions are listed only where they materially block or constrain a transition.
+
+### 8.3 Assignment Lifecycle
+
+States:
+- `draft`
+- `ready_to_publish`
+- `published`
+- `archived`
+
+State meanings:
+- `draft`: assignment exists but is still being prepared and is not publishable.
+- `ready_to_publish`: assignment has passed authoring readiness gates and is eligible for publish.
+- `published`: assignment is available in inventory for tutor assignment and downstream use.
+- `archived`: assignment is retired from new assignment use but remains available for historical reference.
+
+Allowed transitions:
+- `draft -> ready_to_publish`
+- `ready_to_publish -> published`
+- `published -> archived`
+
+Transition triggers and owners:
+- `draft -> ready_to_publish`: triggered when `admin/content creator` completes required assignment and question readiness conditions.
+- `ready_to_publish -> published`: triggered when `admin/content creator` publishes the assignment.
+- `published -> archived`: triggered when `admin/content creator` retires the assignment from future use.
+
+Material guard conditions:
+- `draft -> ready_to_publish` is blocked unless every question in the assignment is in `ready` state.
+- `ready_to_publish -> published` is blocked unless publish eligibility rules are satisfied.
+
+Finalization and closure rules:
+- Once `published`, evaluation-critical authored content must not be edited in place.
+- Changes to evaluation-critical fields after publish must create a new draft/version.
+- `archived` assignments cannot be newly assigned but must remain available for historical reporting and prior evaluation visibility.
+
+### 8.4 Question Lifecycle
+
+States:
+- `incomplete`
+- `ready`
+
+State meanings:
+- `incomplete`: question authoring is not yet sufficient for downstream evaluation use.
+- `ready`: question is fully prepared for publish and downstream evaluation.
+
+Allowed transitions:
+- `incomplete -> ready`
+
+Transition triggers and owners:
+- `incomplete -> ready`: triggered when `admin/content creator` completes required question preparation and confirms final question setup.
+
+Material guard conditions:
+- `incomplete -> ready` is blocked unless the question has:
+  - confirmed concept mapping
+  - confirmed diagnostic dimensions
+  - final rubric definition
+  - alternate methods allowed flag
+
+Finalization and closure rules:
+- `ready` means the question is evaluation-ready for publish purposes, but does not itself imply the parent assignment is published.
+- Optional setup such as `expected solution path` or explicit accepted alternate methods may improve evaluation reliability but does not block `ready` state in V1.
+
+### 8.5 Work Instance Lifecycle
+
+States:
+- `assigned`
+- `in_progress`
+- `submitted`
+- `evaluated`
+- `closed`
+
+State meanings:
+- `assigned`: student-specific work has been assigned but work has not started.
+- `in_progress`: student has started answer upload or work activity.
+- `submitted`: student has submitted final answers for the assigned work.
+- `evaluated`: tutor-approved evaluation of the submitted work is complete.
+- `closed`: the work instance is complete and cannot be reopened in V1.
+
+Allowed transitions:
+- `assigned -> in_progress`
+- `in_progress -> submitted`
+- `submitted -> evaluated`
+- `evaluated -> closed`
+
+Transition triggers and owners:
+- `assigned -> in_progress`: triggered when `student` starts answer upload or work activity.
+- `in_progress -> submitted`: triggered when `student` submits final answers.
+- `submitted -> evaluated`: triggered when `tutor` completes tutor-approved evaluation after system-generated draft review.
+- `evaluated -> closed`: triggered automatically by `system` immediately after tutor-approved evaluation in V1.
+
+Material guard conditions:
+- `in_progress -> submitted` is blocked unless final submission requirements are satisfied for the work instance.
+- `submitted -> evaluated` is blocked unless tutor review reaches required finalization readiness.
+
+Finalization and closure rules:
+- A `Work Instance` may have at most one final `Submission` in V1.
+- A work instance must not be reopened or reassigned after evaluation/closure.
+- If more remediation or follow-up work is needed, a new work instance must be created rather than reusing the old one.
+- `assignment`, `assessment`, and `remediation` share this same lifecycle model in V1.
+
+### 8.6 Submission Lifecycle
+
+States:
+- `draft`
+- `submitted`
+
+State meanings:
+- `draft`: submission artifact exists while the student is still preparing or uploading answers.
+- `submitted`: submission is final and no further student edits are allowed in V1.
+
+Allowed transitions:
+- `draft -> submitted`
+
+Transition triggers and owners:
+- `draft -> submitted`: triggered when `student` performs final submission for the assigned work instance.
+
+Material guard conditions:
+- `draft -> submitted` is blocked unless submission completeness rules are satisfied for the work instance or questions are explicitly marked as not attempted where allowed.
+
+Finalization and closure rules:
+- `Submission` is the final answer artifact, not the official evaluation artifact.
+- After `submitted`, the student cannot reopen or revise the same submission in V1.
+- Evaluation progress belongs primarily to `Evaluation Record` and `Work Instance`, not to a richer submission lifecycle.
+
+### 8.7 Evaluation Record Lifecycle
+
+States:
+- `not_started`
+- `ai_generated`
+- `in_tutor_review`
+- `finalized`
+
+State meanings:
+- `not_started`: no evaluation artifact exists yet for the submitted work.
+- `ai_generated`: system has produced an initial AI evaluation draft.
+- `in_tutor_review`: tutor is reviewing, editing, or validating the AI-generated evaluation.
+- `finalized`: tutor-approved evaluation is complete and becomes official system truth.
+
+Allowed transitions:
+- `not_started -> ai_generated`
+- `ai_generated -> in_tutor_review`
+- `in_tutor_review -> finalized`
+
+Transition triggers and owners:
+- `not_started -> ai_generated`: triggered when `system` completes initial evaluation generation for a submitted work instance.
+- `ai_generated -> in_tutor_review`: triggered when `tutor` opens or begins active review of the generated evaluation.
+- `in_tutor_review -> finalized`: triggered when `tutor` finalizes the evaluation.
+
+Material guard conditions:
+- `not_started -> ai_generated` is blocked unless a final submission exists.
+- `in_tutor_review -> finalized` is blocked unless required tutor-facing finalization fields are complete.
+
+Finalization and closure rules:
+- `finalized` is the only state in which an evaluation record becomes official system truth.
+- Student and parent visibility must be based only on `finalized` evaluation records.
+- A submitted work instance may produce at most one official evaluation record in V1.
+
+### 8.8 Remediation Recommendation Lifecycle
+
+States:
+- `suggested`
+- `tutor_reviewed`
+- `assigned`
+- `not_assigned`
+
+State meanings:
+- `suggested`: system has generated a remediation recommendation from evaluation outcomes.
+- `tutor_reviewed`: tutor has reviewed and optionally edited the recommendation, but has not yet made the final assignment decision.
+- `assigned`: tutor has approved the recommendation and created or attached remediation work.
+- `not_assigned`: tutor has reviewed the recommendation and decided not to assign remediation from it.
+
+Allowed transitions:
+- `suggested -> tutor_reviewed`
+- `tutor_reviewed -> assigned`
+- `tutor_reviewed -> not_assigned`
+
+Transition triggers and owners:
+- `suggested -> tutor_reviewed`: triggered when `tutor` reviews the system-generated remediation recommendation.
+- `tutor_reviewed -> assigned`: triggered when `tutor` chooses to assign remediation based on the reviewed recommendation.
+- `tutor_reviewed -> not_assigned`: triggered when `tutor` explicitly decides not to assign remediation from the reviewed recommendation.
+
+Material guard conditions:
+- `tutor_reviewed -> assigned` is blocked unless tutor assignment decision and required remediation rationale conditions are satisfied where applicable.
+
+Finalization and closure rules:
+- `Remediation Recommendation` is distinct from the remediation `Work Instance` itself.
+- A recommendation may end in `assigned` or `not_assigned` without requiring a richer lifecycle in V1.
+- One remediation work instance may be assembled from multiple tutor-reviewed remediation recommendations.
+
+### 8.9 Cross-Entity Lifecycle Notes
+
+- Entity lifecycles in this section describe domain-state behavior only; they do not define UI states.
+- Where entity relationships overlap, higher-level workflow traceability should treat:
+  - `Work Instance` as the operational assignment lifecycle owner
+  - `Submission` as the final answer artifact lifecycle
+  - `Evaluation Record` as the official evaluation lifecycle
+- Flow design and requirement traceability should use these entity lifecycles as the authoritative state-transition reference.
+
+## 9. User Flow Catalog
+
+### 9.1 Tutor Assignment and Evaluation
 
 #### UF-01: Assign Published Work to Student
 
@@ -901,15 +1120,15 @@ System interaction notes:
 Open questions:
 - None blocking for `UF-01`.
 
-## 9. Functional Requirements
+## 10. Functional Requirements
 
 Pending.
 
-## 10. Non-Functional Requirements
+## 11. Non-Functional Requirements
 
 Pending.
 
-## 11. UX Requirements
+## 12. UX Requirements
 
 ### Locked Evaluation and Review Structure
 
@@ -1036,7 +1255,7 @@ Answer-to-question mapping reliability rule in V1:
 - The system should avoid relying on inference when the student has already uploaded answers into explicit question slots.
 - If the system still detects ambiguity within a question submission, that ambiguity should be surfaced for tutor review rather than silently guessed.
 
-## 12. Integrations and Dependencies
+## 13. Integrations and Dependencies
 
 ### Locked Dependencies
 - Assignment/worksheet inventory
@@ -1044,7 +1263,7 @@ Answer-to-question mapping reliability rule in V1:
 - Reusable question/template library
 - Handwritten submission ingestion
 
-## 13. Risks and Mitigations
+## 14. Risks and Mitigations
 
 ### Locked Risks
 - Misdiagnosis may lead to incorrect remediation and loss of trust.
@@ -1052,11 +1271,11 @@ Answer-to-question mapping reliability rule in V1:
 - Tutor review burden may become too high if AI output quality is inconsistent.
 - Weak or inconsistent mapping/rubric authoring may reduce downstream evaluation quality.
 
-## 14. Acceptance Criteria Matrix
+## 15. Acceptance Criteria Matrix
 
 Pending.
 
-## 15. Open Questions and Decision Log
+## 16. Open Questions and Decision Log
 
 ### Open Questions
 - Exact lifecycle-state validation rules for assignment-level and question-level fields
@@ -1090,7 +1309,7 @@ Pending.
 - `tutor_approved_rationale`
 - `assignment_decision` (`assigned` / `suggested_only` / `not_assigned`)
 
-## 16. Data Model / Implementation Notes
+## 17. Data Model / Implementation Notes
 
 ### Assignment Creation Flow Foundation
 In V1, the creator of an assignment or assessment uploads the actual assignment questions as images or PDF and provides:
