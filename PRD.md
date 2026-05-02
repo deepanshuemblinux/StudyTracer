@@ -1027,101 +1027,99 @@ Finalization and closure rules:
 
 ## 9. User Flow Catalog
 
-### 9.1 Tutor Assignment and Evaluation
+### 9.1 Authoring and Publish
 
-#### UF-01: Assign Published Work to Student
+#### UF-01: Create Assignment Draft
 
 - `Flow ID`: `UF-01`
-- `Flow Name`: `Assign Published Work to Student`
-- `Persona/Actor`: `Tutor`
-- `Trigger`: Tutor chooses to assign published work to a student from inventory.
+- `Flow Name`: `Create Assignment Draft`
+- `Persona/Actor`: `Admin/Content Creator`
+- `Trigger`: Admin/content creator chooses to create a new assignment or assessment within `Content Authoring`.
 
 Preconditions:
-1. Tutor is authenticated.
-2. Tutor has permission to assign published work.
-3. Target student exists and is eligible for assignment.
-4. Selected content exists in inventory and is in `published` state.
-5. Selected content is within supported V1 scope.
+1. User is authenticated.
+2. User has `admin/content creator` permissions.
+3. User can access the `Content Authoring` workspace.
 
 Main success path:
-1. Tutor opens the assignment flow from `Tutor Workspace`.
-2. Tutor selects a target student.
-3. Tutor browses or selects published content from inventory.
-4. System validates that the selected content is still assignable.
-5. Tutor optionally enters a due date.
-6. System checks for a likely duplicate active assignment for the same student and source content.
-7. Tutor confirms the assignment.
-8. System creates a new student-specific `work_instance` with the correct `work_type`.
-9. System stores assigning tutor reference, timestamps, source-content references, and optional due date.
-10. System makes the assigned work visible in the student `My Work` area.
-11. System makes the assigned work visible in tutor assignment/follow-up views.
-12. System records an assignment audit/event entry.
-13. Flow ends with the `work_instance` in `assigned` state.
+1. Admin starts assignment creation within `Content Authoring`.
+2. System opens the assignment creation view in the authoring flow.
+3. Admin selects `type` as `assignment` or `assessment`.
+4. Admin enters required metadata: `subject`, `education_board`, `class_grade`, and `chapter`.
+5. Admin optionally enters `title` and `instructions`.
+6. Admin submits the create action.
+7. System validates all required creation fields.
+8. System creates a new `Assignment` in `draft` state.
+9. System records system-managed creation metadata including `author_id`, `created_at`, and initial `updated_at`.
+10. System opens the newly created assignment workspace in authoring context.
+11. Flow ends with a valid `Assignment` in `draft` state and no questions yet finalized.
 
 Alternate paths:
-- `AP-01`: Tutor assigns without a due date.
-- `AP-02`: Tutor assigns with a due date.
-- `AP-03`: System detects a likely duplicate active assignment, shows a warning, and tutor proceeds.
-- `AP-04`: Tutor changes the selected content before final confirmation.
-- `AP-05`: Tutor changes the selected student before final confirmation.
+- `AP-01`: Admin provides `title` at creation.
+- `AP-02`: Admin leaves `title` blank and adds it later before publish.
+- `AP-03`: Admin provides optional `instructions`.
+- `AP-04`: Admin omits optional `instructions`.
 
 Error/exception paths:
-- `EP-01`: Selected content is no longer in `published` state at confirmation time; assignment is blocked and tutor must reselect content.
-- `EP-02`: Target student is not eligible or cannot receive assignment; assignment is blocked.
-- `EP-03`: Tutor session or authorization fails before completion; flow stops until authentication is restored.
-- `EP-04`: Provided due date is invalid; system rejects the value and requires correction or removal.
-- `EP-05`: System fails to create the `work_instance`; assignment does not complete.
-- `EP-06`: System creates partial backend state but fails to persist tutor/student visibility or audit outcome; assignment must surface as failed or incomplete, not silently succeed.
+- `EP-01`: User lacks authorization; system blocks access to the creation flow.
+- `EP-02`: One or more required fields are missing; system blocks creation and keeps the admin in the creation view for correction.
+- `EP-03`: One or more required fields are invalid; system blocks creation and requires correction.
+- `EP-04`: Backend or persistence failure occurs after valid submission; system shows failure, preserves entered values, and allows retry.
+- `EP-05`: Session/authentication fails before successful creation; system blocks creation until access is restored.
+
+Cancel path:
+- `CP-01`: Admin cancels before submit; system exits the flow and no `Assignment` is created.
 
 Postconditions:
-1. A new student-specific `work_instance` exists in `assigned` state.
-2. The assigned work is visible to the student in `My Work`.
-3. The assigned work is visible to the tutor in assignment/follow-up views.
-4. No submission exists yet.
-5. If provided, the due date is attached to the `work_instance`.
-6. If a likely duplicate was detected, the warning is recorded but does not invalidate assignment success.
+1. A new `Assignment` exists in `draft` state only on successful creation.
+2. The assignment contains the validated creation metadata.
+3. `title` and `instructions` may be empty.
+4. `overall_concepts_tested` is still unset at this stage.
+5. Admin lands in the newly created assignment workspace.
 
 Data created/updated:
-- New `work_instance`
-- `assigned_by`
-- `assigned_at`
-- optional `due_at`
-- source assignment reference(s)
-- `work_type`
-- student-visible work entry
-- tutor-visible assigned-work entry
-- assignment audit/event record
+- New `Assignment`
+- `status = draft`
+- `type`
+- `subject`
+- `education_board`
+- `class_grade`
+- `chapter`
+- optional `title`
+- optional `instructions`
+- `author_id`
+- `created_at`
+- `updated_at`
 
 API/Service touchpoints:
 - authentication/authorization service
-- student lookup/eligibility service
-- published inventory lookup
-- assignment creation / `work_instance` persistence service
-- tutor/student workspace visibility update service
-- audit/event logging service
+- assignment creation / `Assignment` persistence service
+- authoring workspace routing service
 
 Business rules applied:
-- Only published in-scope content may be assigned.
-- Assignment is single-student only in V1.
-- Duplicate active assignment triggers a warning but not a hard block.
-- Due date is optional.
-- Assignment creates a student-specific `work_instance`, not a direct submission.
+- Only `admin/content creator` can create assignments.
+- No assignment record is persisted before successful validation and submit.
+- Required creation metadata must be valid before draft creation.
+- `type` requires explicit selection.
+- Creation-time required metadata is `type`, `subject`, `education_board`, `class_grade`, and `chapter`.
+- Creation-time optional metadata is `title` and `instructions`.
+- Metadata similarity is not treated as a duplicate signal.
+- `overall_concepts_tested` is populated later, after question parsing, and is editable only by `admin/content creator`.
+
+Linked IA modules:
+- `Content Authoring`
+- `Assignment Metadata Setup`
 
 Linked screens:
-- `Tutor Workspace`
-- `Assignments to Students`
-- student selector
-- published inventory picker
-- assignment confirmation view
-- student `My Work`
+- `TBD after screen inventory is defined`
 
 Linked requirements:
 - `FR-TBD`
 
 System interaction notes:
-- The system must validate assignability at confirmation time, not only at initial selection time.
-- The system must not silently create duplicate visibility inconsistencies between tutor and student views.
-- The system should preserve source lineage needed for later submission and evaluation flows.
+- The system must not persist a pre-create draft or invalid placeholder assignment.
+- Validation failures should remain in-flow and be immediately correctable by the admin.
+- Persistence failures must preserve entered values and expose a retry path.
 
 Open questions:
 - None blocking for `UF-01`.
