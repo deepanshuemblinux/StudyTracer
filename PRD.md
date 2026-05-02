@@ -483,6 +483,8 @@ The release is positioned as a tutor-governed `diagnostic intelligence product` 
 
 ## 6. Domain Model (Core Entities & Relationships)
 
+Diagram reference: [domain-diagram.md](domain-diagram.md)
+
 ### 6.1 Purpose
 This section defines the core business entities and relationships of StudyTracer independent of UI, navigation, database design, or API structure. It captures the system's business truth: what the product manages, how those entities relate, who governs them, and what invariants must always hold.
 
@@ -737,6 +739,8 @@ Admin/content creator owns creation and material update of publishable content a
 
 ## 7. Information Architecture
 
+Diagram reference: [information-hierarchy-diagram.md](information-hierarchy-diagram.md)
+
 ### 7.0 Product Workspaces and Navigation Hierarchy
 
 V1 uses a `hybrid workspace model` with role-based top-level product areas and function-specific modules within those areas.
@@ -803,6 +807,8 @@ Purpose:
 - Used by parents for read-only visibility into approved results and prior work history for linked students.
 
 ## 8. Lifecycle and State Model
+
+Diagram reference: [lifecycle-state-diagram.md](lifecycle-state-diagram.md)
 
 ### 8.1 Purpose
 This section defines lifecycle states, allowed transitions, transition triggers, blocking rules, and finalization or closure rules for core domain entities in StudyTracer. It focuses on domain-entity state behavior only and excludes UI screen states and database column definitions.
