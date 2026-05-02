@@ -6,15 +6,16 @@
 - [3. Goals and Non-Goals](#3-goals-and-non-goals)
 - [4. Users and Personas](#4-users-and-personas)
 - [5. Scope](#5-scope)
-- [6. Information Architecture](#6-information-architecture)
-- [7. User Flow Catalog](#7-user-flow-catalog)
-- [8. Functional Requirements](#8-functional-requirements)
-- [9. Non-Functional Requirements](#9-non-functional-requirements)
-- [10. UX Requirements](#10-ux-requirements)
-- [11. Integrations and Dependencies](#11-integrations-and-dependencies)
-- [12. Risks and Mitigations](#12-risks-and-mitigations)
-- [13. Acceptance Criteria Matrix](#13-acceptance-criteria-matrix)
-- [14. Open Questions and Decision Log](#14-open-questions-and-decision-log)
+- [6. Domain Model (Core Entities & Relationships)](#6-domain-model-core-entities--relationships)
+- [7. Information Architecture](#7-information-architecture)
+- [8. User Flow Catalog](#8-user-flow-catalog)
+- [9. Functional Requirements](#9-functional-requirements)
+- [10. Non-Functional Requirements](#10-non-functional-requirements)
+- [11. UX Requirements](#11-ux-requirements)
+- [12. Integrations and Dependencies](#12-integrations-and-dependencies)
+- [13. Risks and Mitigations](#13-risks-and-mitigations)
+- [14. Acceptance Criteria Matrix](#14-acceptance-criteria-matrix)
+- [15. Open Questions and Decision Log](#15-open-questions-and-decision-log)
 
 ## 1. Document Control
 
@@ -478,9 +479,263 @@ The release is positioned as a tutor-governed `diagnostic intelligence product` 
 - No blocking scope decisions remain for V1.
 - Future expansion decisions remain open for organizational access segmentation, advanced trend analytics, and broader tutor or parent workspaces.
 
-## 6. Information Architecture
+## 6. Domain Model (Core Entities & Relationships)
 
-### 6.0 Product Workspaces and Navigation Hierarchy
+### 6.1 Purpose
+This section defines the core business entities and relationships of StudyTracer independent of UI, navigation, database design, or API structure. It captures the system's business truth: what the product manages, how those entities relate, who governs them, and what invariants must always hold.
+
+### 6.2 Core Entities
+
+#### Assignment
+A governed academic content object representing a publishable assignment or assessment in V1. It provides the authored source context from which student-specific work is later assigned.
+
+#### Question
+A first-class academic evaluation unit contained within an assignment. A question is the primary mapped evidence unit in the system and is the authoritative production object for concept mapping and finalized rubric definition.
+
+#### Concept
+A shared academic learning target used across assignments, questions, evaluations, and remediation. Concepts are not local to a single assignment; they are reused across the domain as the main target of concept-level diagnosis.
+
+#### Rubric Definition
+The finalized question-owned evaluation definition used to assess a specific question across supported diagnostic dimensions. Reusable assets may inform it, but the authoritative rubric definition belongs to the question.
+
+#### Reusable Question Template
+A governed reusable authoring asset representing a prior question pattern or structure that can inform future question mapping and rubric setup.
+
+#### Diagnostic Dimension Template
+A governed reusable evaluation scaffold for a diagnostic dimension within a meaningful academic scope. It supports authoring-time rubric construction but is distinct from the final rubric owned by a question.
+
+#### Student
+A core domain participant who receives assigned work, submits handwritten responses, receives tutor-approved evaluation outputs, and completes assigned remediation.
+
+#### Tutor
+A core domain participant who assigns work, governs official evaluation truth through review/finalization, and approves or assigns remediation.
+
+#### Parent
+A core domain participant with read-only visibility rights derived from real parent-student linkage. Parent is not only a UI viewer role; it is part of system truth because linked visibility depends on it.
+
+#### Work Instance
+A student-specific assigned occurrence of academic work. It is the core operational work object acted on by the student and tutor. A work instance may represent an `assignment`, `assessment`, or `remediation`.
+
+#### Submission
+The student's final submitted answer package for a specific work instance. It represents what the student submitted, not the official evaluated judgment.
+
+#### Evaluation Record
+The official evaluation artifact produced for a submitted work instance. It contains the evaluated outcome container for tutor-governed, officially finalized academic judgment.
+
+#### Question Evidence
+A question-level evaluation entity representing the structured evidence derived from a student's response to a specific question. It supports concept-level diagnosis and remains independently meaningful within the evaluation workflow.
+
+#### Concept Evaluation
+A concept-level evaluation entity representing tutor-governed judgment about student performance on a specific concept, based on linked question evidence and supported diagnostic-dimension findings.
+
+#### Remediation Recommendation
+A domain entity representing recommended next-step remediation derived from evaluation outcomes. It may exist even before an actual remediation work instance is assigned.
+
+#### Authoring and Mapping Foundation
+- Assignment-level metadata is human-provided.
+- Question-level mapping and rubric setup is AI-assisted and human-reviewed.
+- `Question` should be modeled as a first-class object in the system.
+  The system should distinguish between:
+  - an `assignment-bound question instance`, which is the authoritative production object used for publishing and student evaluation
+  - an optional reusable `question template/pattern`, which is used for authoring-time retrieval and reuse support
+- Concept mapping and rubric definition are separate objects.
+- Question is the primary mapped evidence unit.
+  Each question is the lowest-level academic artifact that is explicitly prepared for evaluation. Every question must carry its own confirmed concept mapping and question-level rubric definitions for the supported diagnostic dimensions. When a student submits work, the AI first reads and evaluates the response at the question level, because that is where observable evidence exists.
+- Concept and diagnostic judgment are the primary evaluation decision units.
+  The system does not stop at question-level correctness. Instead, it converts question-level evidence into tutor-reviewable judgments about:
+  - whether a concept is `Met`, `Partially Met`, `Not Met`, or has `Insufficient Evidence`
+  - what type of weakness exists within that concept across the supported diagnostic dimensions such as `concept mastery`, `logical-step correctness`, and `calculation/execution accuracy`
+  These concept and diagnostic judgments are the official outputs used for reporting, remediation, and progress tracking.
+- Evaluation is `concept-first and diagnostic-dimension-aware with question evidence`.
+  This means the system evaluates each question using its question-level rubric definitions, produces structured evidence for the linked concepts and diagnostic dimensions, and then aggregates that evidence by concept. The final AI output is not just “this question is right or wrong,” and it is not just “this concept is weak.” It is a concept-level evaluation that is backed by question evidence and explained through diagnostic-dimension findings.
+- Reusable rubric model is `reusable base with assignment-level overrides`.
+  The platform should support reusable rubric building blocks so similar questions do not need to be authored from scratch every time. However, reuse should not force identical evaluation logic across all assignments. A reusable base definition can be suggested from prior patterns, and the creator can then adjust or override it for the specific assignment question being authored. This preserves reuse efficiency without sacrificing question-specific accuracy.
+- Reusable templates are visible and editable only to `admin/content` roles in V1.
+  In V1, shared reusable templates are governed assets rather than open-edit objects. Admin/content users can create, review, update, and manage these reusable templates so the shared library stays consistent. Tutors can benefit from AI suggestions and published content, but they do not directly edit the shared reusable template library in V1.
+
+Evaluation model clarification:
+- AI evaluates each submitted question against its confirmed question-level rubric definitions for the supported diagnostic dimensions.
+- For each question, AI produces structured evidence about:
+  - the linked concept(s),
+  - `concept mastery`,
+  - `logical-step correctness`,
+  - `calculation/execution accuracy`,
+  - and the reason for the judgment.
+- AI then aggregates question-level evidence across all questions linked to the same concept.
+- Using that evidence, AI produces a concept-level judgment and diagnostic-dimension findings for that concept.
+- The output is therefore not just `concept gap` identification; it is a concept-level evaluation supported by question evidence and explained through diagnostic-dimension findings.
+- Tutor review is mandatory before any evaluation becomes final or visible to students and parents.
+
+### 6.3 Relationship Mapping
+
+#### Content and Authoring Relationships
+- An `Assignment` contains one or more `Question` entities.
+- A `Question` belongs to exactly one `Assignment` in its authoritative production form.
+- A `Question` maps to one or more shared `Concept` entities.
+- A `Question` has exactly one authoritative `Rubric Definition`.
+- Each authoritative `Rubric Definition` belongs to exactly one `Question`.
+- A `Reusable Question Template` may inform many `Question` entities, while a `Question` may be informed by zero or one primary reusable question template in V1.
+- A `Diagnostic Dimension Template` may inform many `Rubric Definition` entities, and a `Rubric Definition` may be informed by multiple `Diagnostic Dimension Template` entities.
+
+#### Assignment and Student Work Relationships
+- A `Student` may have many `Work Instance` entities.
+- Each `Work Instance` belongs to exactly one `Student`.
+- A `Tutor` may assign many `Work Instance` entities.
+- Each `Work Instance` is assigned by exactly one `Tutor`.
+- A `Work Instance` references one or more source `Assignment` entities depending on work type.
+- A source `Assignment` may be referenced by many `Work Instance` entities.
+- A `Work Instance` may represent regular assigned work or remediation, but remains one common domain entity.
+
+#### Submission and Evaluation Relationships
+- A `Work Instance` may have at most one final `Submission` in V1.
+- Each `Submission` belongs to exactly one `Work Instance`.
+- A `Student` may create many `Submission` entities.
+- Each `Submission` belongs to exactly one `Student`.
+- A `Tutor` may be responsible for many `Submission` entities.
+- Each `Submission` belongs to exactly one responsible `Tutor`.
+- A `Submission` may produce at most one official `Evaluation Record` in V1.
+- Each `Evaluation Record` belongs to exactly one `Submission`.
+- Each `Evaluation Record` also belongs directly to exactly one `Work Instance`.
+- A `Work Instance` may have at most one `Evaluation Record` in V1.
+- An `Evaluation Record` contains one or more `Question Evidence` entities.
+- Each `Question Evidence` belongs to exactly one `Evaluation Record`.
+- An `Evaluation Record` contains one or more `Concept Evaluation` entities.
+- Each `Concept Evaluation` belongs to exactly one `Evaluation Record`.
+- Each `Question Evidence` refers to exactly one `Question`.
+- A `Question` may have many `Question Evidence` entities over time across different student evaluations.
+- Each `Concept Evaluation` refers to exactly one `Concept`.
+- A `Concept` may have many `Concept Evaluation` entities across different students, submissions, and work instances.
+- A `Question Evidence` may support one or more `Concept Evaluation` entities.
+- A `Concept Evaluation` is supported by one or more `Question Evidence` entities.
+- A `Submission` does not directly relate to `Question` in the domain model; `Question Evidence` is the question-level bridge.
+
+#### Remediation Relationships
+- A `Concept Evaluation` may produce zero or more `Remediation Recommendation` entities.
+- Each `Remediation Recommendation` belongs to exactly one `Concept Evaluation`.
+- A `Tutor` may govern many `Remediation Recommendation` entities.
+- Each finalized `Remediation Recommendation` has exactly one governing `Tutor`.
+- A `Remediation Recommendation` may result in zero or one assigned remediation `Work Instance` in V1.
+- A remediation `Work Instance` may be assembled from one or more `Remediation Recommendation` entities.
+- `Concept Evaluation` does not directly relate to `Diagnostic Dimension Template`; evaluation truth flows through question-owned rubric definitions and derived evidence.
+
+#### User and Visibility Relationships
+- A `Tutor` may finalize many `Evaluation Record` entities.
+- Each finalized `Evaluation Record` has exactly one finalizing `Tutor`.
+- A `Parent` may be linked to one or more `Student` entities.
+- A `Student` may be linked to one or more `Parent` entities.
+- Parent visibility rights derive from that parent-student linkage.
+- Students and parents see only tutor-approved official outputs, not draft AI outputs.
+
+### 6.4 Ownership Mapping
+
+#### Admin/Content Creator Governed
+- `Assignment`
+- `Question`
+- `Rubric Definition`
+- `Reusable Question Template`
+- `Diagnostic Dimension Template`
+
+Admin/content creator owns creation and material update of publishable content and governed reusable authoring assets.
+- In V1, `admin/content creators` can create, edit, and publish assignments/assessments to inventory.
+- In V1, `admin/content creators` create and publish new official versions when evaluation-critical changes are required.
+
+#### Tutor Created or Governed
+- `Work Instance` is created by `Tutor` assignment action.
+- `Evaluation Record` is system-created but tutor-governed.
+- `Question Evidence` is system-generated but tutor-governed.
+- `Concept Evaluation` is system-generated but tutor-governed.
+- `Remediation Recommendation` is system-generated but tutor-governed.
+- In V1, `tutors` cannot publish content to inventory.
+- In V1, tutors can assign published worksheets/assignments/assessments to students.
+
+#### Student Created
+- `Submission` is created by the `Student` as the final answer package for a work instance.
+
+#### Relationship-Governed
+- `Parent` and `Student` linkage is part of domain truth and governs parent visibility.
+
+### 6.5 Key Invariants and Rules
+
+#### Authoring Invariants
+- A `Question` is not evaluation-ready unless it has confirmed concept mapping and finalized rubric definition.
+- A question's authoritative rubric definition belongs to that specific question, even if reusable assets informed it.
+- A `Concept` is shared across the domain and must not be treated as assignment-local truth.
+- Reusable templates may inform authoring, but they do not replace question-specific finalization.
+- Assignment-level metadata is human-provided and must be established before question preparation can be finalized for publish.
+- Question-level mapping and rubric setup are AI-assisted but remain human-reviewed before publish.
+- Final saved assignments must contain human-reviewed mappings and rubric definitions even when AI performs most of the initial drafting.
+- Assignment-level concept summaries are derived from question-level mappings, while assignment-level diagnostic understanding is inferred from question-level diagnostic-dimension definitions and evidence.
+- `Assignment` lifecycle states in V1 are `draft`, `ready_to_publish`, `published`, and `archived`.
+- `Question` lifecycle states in V1 are `incomplete` and `ready`.
+- An assignment may move to `ready_to_publish` only when every question is `ready`.
+- A question is `ready` only when it has confirmed concept mapping, confirmed diagnostic dimensions, final rubric definition, and alternate methods allowed flag.
+- An assignment may move to `published` only from `ready_to_publish`.
+- Once published, evaluation-critical authored content must not be edited in place; such changes require a new draft/version.
+- `Archived` assignments cannot be newly assigned but must remain available for historical reporting and prior evaluation visibility.
+- Publish eligibility depends on whether the current assignment questions have complete confirmed concept mappings and question-level diagnostic-dimension rubric definitions.
+- Reuse is assistive and must not block publish eligibility.
+- Mandatory question-level publish readiness depends on `question content`, `concept mapping`, and `diagnostic dimensions`.
+- Optional question-level setup such as `expected solution path` and explicit accepted alternate methods may improve evaluation reliability but does not define minimum publish readiness in V1.
+
+#### Work and Submission Invariants
+- A `Work Instance` is the authoritative student-facing assigned work object.
+- A `Work Instance` may represent `assignment`, `assessment`, or `remediation`, but remains one common business entity.
+- A `Work Instance` may have at most one final `Submission` in V1.
+- If more work is needed after completion, a new work instance must be created rather than reusing the old one.
+- A published assignment or assessment is the reusable inventory object, while a `Work Instance` is the student-specific assigned occurrence of that content.
+- `assignment`, `assessment`, and `remediation` remain explicit `work_type` labels even though they share one common student-facing work model.
+- `Work Instance` lifecycle states in V1 are `assigned`, `in_progress`, `submitted`, `evaluated`, and `closed`.
+- A work instance reaches `in_progress` when the student starts answer upload or work activity.
+- A work instance reaches `submitted` when the student submits final answers for that assigned work.
+- A work instance reaches `evaluated` when tutor-approved evaluation is complete.
+- A work instance reaches `closed` automatically immediately after tutor-approved evaluation in V1.
+- A work instance must not be reopened or reassigned after evaluation/closure.
+
+#### Evaluation Invariants
+- `Submission` and `Evaluation Record` are distinct business entities.
+- `Question Evidence` and `Concept Evaluation` remain meaningful evaluation entities, not just hidden internal fragments.
+- Evaluation-domain entities are system-generated but tutor-governed.
+- An `Evaluation Record` becomes official system truth only after tutor finalization.
+- Students and parents must not see non-finalized evaluation drafts as official outputs.
+- The `Evaluation Record` is the official evaluated outcome container for one student-specific work instance.
+- V1 evaluation uses three official diagnostic dimensions: `concept mastery`, `logical-step correctness`, and `calculation/execution accuracy`.
+- These diagnostic dimensions are reusable at the framework level, but each question has its own question-specific evaluation definition for those dimensions.
+- In V1, each student is allowed only one final submission per assignment/work instance.
+- Concept judgments are qualitative and are not score-aggregated in V1.
+- No question weightage is assigned in V1.
+- Each concept is evaluated independently using linked question evidence.
+- The evaluation pipeline is `question-level structured evidence -> AI concept/dimension judgment -> tutor finalization`.
+
+#### Remediation Invariants
+- `Remediation Recommendation` may exist independently of whether remediation is actually assigned.
+- Assigned remediation work is represented by `Work Instance`, not by a separate remediation-only core entity.
+- Remediation authority depends on tutor-governed evaluation truth.
+- In V1, remediation uses the same underlying content model as other assigned academic work rather than a separate remediation-only content type.
+- Remediation retrieval is driven by structured remediation targets derived from evaluation output.
+- Remediation may combine questions from multiple source assignments into one student-specific remediation work instance.
+- Source provenance for remediation questions must be preserved even when the student receives one combined remediation work instance.
+- Students do not need to see why each remediation question was selected in V1.
+- Parents should see a short tutor-approved remediation rationale at the remediation level.
+
+### 6.6 Assumptions
+- Shared concepts are necessary for consistent concept-level diagnosis and remediation across authored content.
+- Question-owned final rubrics preserve accuracy better than globally shared production rubrics.
+- Tutor-governed official evaluation is required for trust and operational control in V1.
+- A common work-instance model is sufficient to represent both regular work and remediation in the business domain.
+
+### 6.7 Risks
+- If shared concepts are poorly governed, cross-assignment concept consistency may degrade.
+- If question-owned rubrics are authored inconsistently, evaluation quality may vary across similar questions.
+- If system-generated drafts are weak, tutor-governed evaluation objects may still create high review burden.
+- If the common `Work Instance` model accumulates too many special cases, later domain refinement may be needed.
+
+### 6.8 Unresolved Decisions
+- No blocking unresolved domain-model decisions remain from the current discussion.
+- Later ERD work may still require implementation-level normalization choices, but those are outside this section.
+
+## 7. Information Architecture
+
+### 7.0 Product Workspaces and Navigation Hierarchy
 
 V1 uses a `hybrid workspace model` with role-based top-level product areas and function-specific modules within those areas.
 
@@ -545,658 +800,116 @@ Primary modules:
 Purpose:
 - Used by parents for read-only visibility into approved results and prior work history for linked students.
 
-### 6A. Core Entities and Relationships
+## 8. User Flow Catalog
 
-#### Authoring and Mapping Foundation
-- Assignment-level metadata is human-provided.
-- Question-level mapping and rubric setup is AI-assisted and human-reviewed.
-- `Question` should be modeled as a first-class object in the system.
-  The system should distinguish between:
-  - an `assignment-bound question instance`, which is the authoritative production object used for publishing and student evaluation
-  - an optional reusable `question template/pattern`, which is used for authoring-time retrieval and reuse support
-- Concept mapping and rubric definition are separate objects.
-- Question is the primary mapped evidence unit.
-  Each question is the lowest-level academic artifact that is explicitly prepared for evaluation. Every question must carry its own confirmed concept mapping and question-level rubric definitions for the supported diagnostic dimensions. When a student submits work, the AI first reads and evaluates the response at the question level, because that is where observable evidence exists.
-- Concept and diagnostic judgment are the primary evaluation decision units.
-  The system does not stop at question-level correctness. Instead, it converts question-level evidence into tutor-reviewable judgments about:
-  - whether a concept is `Met`, `Partially Met`, `Not Met`, or has `Insufficient Evidence`
-  - what type of weakness exists within that concept across the supported diagnostic dimensions such as `concept mastery`, `logical-step correctness`, and `calculation/execution accuracy`
-  These concept and diagnostic judgments are the official outputs used for reporting, remediation, and progress tracking.
-- Evaluation is `concept-first and diagnostic-dimension-aware with question evidence`.
-  This means the system evaluates each question using its question-level rubric definitions, produces structured evidence for the linked concepts and diagnostic dimensions, and then aggregates that evidence by concept. The final AI output is not just “this question is right or wrong,” and it is not just “this concept is weak.” It is a concept-level evaluation that is backed by question evidence and explained through diagnostic-dimension findings.
-- Reusable rubric model is `reusable base with assignment-level overrides`.
-  The platform should support reusable rubric building blocks so similar questions do not need to be authored from scratch every time. However, reuse should not force identical evaluation logic across all assignments. A reusable base definition can be suggested from prior patterns, and the creator can then adjust or override it for the specific assignment question being authored. This preserves reuse efficiency without sacrificing question-specific accuracy.
-- Reusable templates are visible and editable only to `admin/content` roles in V1.
-  In V1, shared reusable templates are governed assets rather than open-edit objects. Admin/content users can create, review, update, and manage these reusable templates so the shared library stays consistent. Tutors can benefit from AI suggestions and published content, but they do not directly edit the shared reusable template library in V1.
+### 8.1 Tutor Assignment and Evaluation
 
-Evaluation model clarification:
-- AI evaluates each submitted question against its confirmed question-level rubric definitions for the supported diagnostic dimensions.
-- For each question, AI produces structured evidence about:
-  - the linked concept(s),
-  - `concept mastery`,
-  - `logical-step correctness`,
-  - `calculation/execution accuracy`,
-  - and the reason for the judgment.
-- AI then aggregates question-level evidence across all questions linked to the same concept.
-- Using that evidence, AI produces a concept-level judgment and diagnostic-dimension findings for that concept.
-- The output is therefore not just `concept gap` identification; it is a concept-level evaluation supported by question evidence and explained through diagnostic-dimension findings.
-- Tutor review is mandatory before any evaluation becomes final or visible to students and parents.
+#### UF-01: Assign Published Work to Student
 
-#### Assignment Creation Flow Foundation
-In V1, the creator of an assignment or assessment uploads the actual assignment questions as images or PDF and provides:
-- `subject` required
-- `education board` required
-- `class/grade` required
-- `chapter` required
-- `assignment/assessment type` required
-- `overall concepts tested` optional, but AI-assisted and required when the assignment clearly spans multiple concepts
+- `Flow ID`: `UF-01`
+- `Flow Name`: `Assign Published Work to Student`
+- `Persona/Actor`: `Tutor`
+- `Trigger`: Tutor chooses to assign published work to a student from inventory.
 
-This assignment-level information gives the system the academic context needed to interpret the uploaded questions more accurately. It also narrows the space for AI-generated question mappings, rubric definitions, and reuse suggestions.
+Preconditions:
+1. Tutor is authenticated.
+2. Tutor has permission to assign published work.
+3. Target student exists and is eligible for assignment.
+4. Selected content exists in inventory and is in `published` state.
+5. Selected content is within supported V1 scope.
 
-In V1, this metadata must be entered before question upload so it is available when the system begins parsing uploaded questions and retrieving reusable template candidates.
+Main success path:
+1. Tutor opens the assignment flow from `Tutor Workspace`.
+2. Tutor selects a target student.
+3. Tutor browses or selects published content from inventory.
+4. System validates that the selected content is still assignable.
+5. Tutor optionally enters a due date.
+6. System checks for a likely duplicate active assignment for the same student and source content.
+7. Tutor confirms the assignment.
+8. System creates a new student-specific `work_instance` with the correct `work_type`.
+9. System stores assigning tutor reference, timestamps, source-content references, and optional due date.
+10. System makes the assigned work visible in the student `My Work` area.
+11. System makes the assigned work visible in tutor assignment/follow-up views.
+12. System records an assignment audit/event entry.
+13. Flow ends with the `work_instance` in `assigned` state.
 
-For each question, the system generates:
-- AI-suggested `question-to-concept mapping`
-- AI-suggested `question-specific rubric/evaluation definition`
-- suggested `reusable question pattern/template` matches from prior data
-- AI-suggested `assignment-level concept/rubric summary`
+Alternate paths:
+- `AP-01`: Tutor assigns without a due date.
+- `AP-02`: Tutor assigns with a due date.
+- `AP-03`: System detects a likely duplicate active assignment, shows a warning, and tutor proceeds.
+- `AP-04`: Tutor changes the selected content before final confirmation.
+- `AP-05`: Tutor changes the selected student before final confirmation.
 
-Here:
-- `AI-suggested question-to-concept mapping` means the system proposes which concept or concepts the uploaded question is testing.
-- `AI-suggested question-specific rubric/evaluation definition` means the system proposes how that specific question should be evaluated across the supported diagnostic dimensions.
-- `Suggested reusable question pattern/template matches` means the system surfaces prior similar question patterns whose mappings or rubric structures may be reused or adapted.
-- `AI-suggested assignment-level concept/rubric summary` means the system derives an overall summary of the concepts covered in the assignment and the diagnostic structure implied by the uploaded questions.
+Error/exception paths:
+- `EP-01`: Selected content is no longer in `published` state at confirmation time; assignment is blocked and tutor must reselect content.
+- `EP-02`: Target student is not eligible or cannot receive assignment; assignment is blocked.
+- `EP-03`: Tutor session or authorization fails before completion; flow stops until authentication is restored.
+- `EP-04`: Provided due date is invalid; system rejects the value and requires correction or removal.
+- `EP-05`: System fails to create the `work_instance`; assignment does not complete.
+- `EP-06`: System creates partial backend state but fails to persist tutor/student visibility or audit outcome; assignment must surface as failed or incomplete, not silently succeed.
 
-Reusable template retrieval behavior in V1:
-- Retrieval begins automatically immediately after assignment upload for all uploaded questions.
-- Retrieval uses assignment-level metadata first to narrow candidates using:
-  - `subject`
-  - `education board`
-  - `class/grade`
-  - `chapter`
-  - `overall concepts tested` when available
-  - `question type` when inferable
-- After metadata-based narrowing, the system uses AI/RAG-style similarity matching over stored reusable-template question representations to identify the top reusable template candidates for each question.
-- The system shows the `top 3` reusable template candidates per question.
-- Reusable question-template candidates should be shown only if they cross a fixed global minimum match threshold in V1.
-- If no strong reusable candidate is found, the system shows only the fresh AI-generated mapping/rubric suggestion.
-- Retrieval runs automatically and also supports manual re-run by the creator.
-- Retrieval runs again if assignment metadata is changed.
-- Retrieval runs again if the parsed question changes or the uploaded file is replaced.
-- For an uploaded question, the system derives a comparable question representation from the uploaded image/PDF; the creator does not manually provide a retrieval pattern.
-- The minimum match threshold should be system-controlled and not user-configurable in V1.
+Postconditions:
+1. A new student-specific `work_instance` exists in `assigned` state.
+2. The assigned work is visible to the student in `My Work`.
+3. The assigned work is visible to the tutor in assignment/follow-up views.
+4. No submission exists yet.
+5. If provided, the due date is attached to the `work_instance`.
+6. If a likely duplicate was detected, the warning is recorded but does not invalidate assignment success.
 
-Two retrieval layers operate during question authoring in V1:
-- `Reusable question-template retrieval`
-  This helps answer: `Have we seen a similar question before?`
-  It supports reuse of prior question-level mappings and rubric structures.
-- `Diagnostic-dimension-template retrieval`
-  This helps answer: `What reusable scaffold should define this diagnostic dimension for this kind of question?`
-  It supports construction of dimension-specific rubric definitions for the current question.
-
-These two retrieval layers should run separately but converge into one coherent AI-generated suggestion for the creator.
-- The creator should not need to manually manage two different retrieval systems.
-- The creator should see one AI suggestion, optionally accompanied by a compact provenance summary.
-- Diagnostic-dimension-template retrieval should also use thresholding in V1 so that weak scaffold matches do not influence the AI-generated rubric suggestion.
-
-Reusable template retrieval flow in V1:
-1. Creator enters required assignment-level metadata.
-2. Creator uploads assignment questions as images or PDF.
-3. System parses the uploaded assignment into question units.
-4. For each question, the system derives a machine-usable question representation from the uploaded file.
-5. The system narrows the reusable-template search space using assignment-level metadata and inferred question type where available.
-6. The system performs AI/RAG-style similarity retrieval against stored reusable-template question representations.
-7. The system returns the top reusable template candidates for each question.
-8. The system also generates a fresh AI mapping/rubric suggestion for each question.
-9. The creator reviews reusable suggestions side by side with fresh AI-generated suggestions and can accept, edit, merge, or ignore them.
-10. The creator finalizes the question setup before save/publish.
-
-During authoring, the creator sees:
-- `AI-generated mapping/rubric suggestion`
-- `reused mapping/template suggestion`
-- `side-by-side comparison`
-- ability to choose one, edit either, merge, or create a fresh version
-- ability to review and edit the AI-suggested `assignment-level concept/rubric summary` before save/publish
-
-This means the creator is not forced to accept either the AI-generated structure or the reuse suggestion as-is. The creator can compare both, modify them, combine parts of them, or create a new finalized version when needed. The final saved assignment should therefore contain human-reviewed mappings and rubric definitions, even when AI performed most of the initial drafting.
-
-Assignment-level concept summaries are derived from question-level mappings, while assignment-level diagnostic understanding is inferred from question-level diagnostic-dimension definitions and evidence.
-
-In V1, the system should store a derived `assignment concept coverage summary`.
-- This is a stored derived summary, not an independently authored object.
-- The creator may review it, but may not edit it directly.
-- Minimum structure:
-  - `assignment_id`
-  - `subject`
-  - `education_board`
-  - `class_grade`
-  - `chapter`
-  - `concept_summaries[]`
-- Each `concept_summary` should contain:
-  - `concept_name` or `concept_id`
-  - `linked_question_ids[]`
-  - `linked_question_count`
-  - `covered_diagnostic_dimensions[]`
-  - optional `summary_notes`
-
-#### Publishing Permissions and Ownership
-- In V1, `admin/content creators` can create, edit, and publish assignments/assessments to inventory.
-- In V1, `tutors` cannot publish content to inventory.
-- In V1, tutors can assign published worksheets/assignments/assessments to students.
-- Reusable templates are visible and editable only to `admin/content` roles in V1.
-
-#### Persistence and Reuse Model
-- The system persists question mappings and question-specific evaluation definitions at the `assignment question instance` level.
-  Here, `question mappings` means the confirmed mapping from a specific uploaded question to one or more concepts.
-  `Question-specific evaluation definitions` means the confirmed rubric definitions for the supported diagnostic dimensions for that specific question.
-  This data is persisted because it is the official evaluation setup that the AI will later use when student submissions are evaluated against that uploaded assignment.
-- `Assignment question instance` means a specific question as it exists inside a specific uploaded assignment or assessment.
-  Even if a similar question appears elsewhere, the assignment question instance is the concrete version that belongs to that assignment and carries the final approved mapping and rubric definitions used for production evaluation.
-- The system may also persist reusable `question pattern/template` records for future suggestion and reuse.
-  These reusable records are a library layer above individual assignment questions. They help the system suggest prior mappings and rubric structures when a new uploaded question looks similar to something seen before.
-- Reusable question pattern/template records are not the same as the official assignment question instance.
-  The assignment question instance remains the authoritative production object used for student evaluation. Reusable templates exist to improve future authoring efficiency.
-- A reusable question pattern/template should be persisted only when `admin/content` explicitly promotes a finalized assignment-question setup into the reusable library.
-- Not every finalized assignment question should automatically become a reusable template in V1.
-- Reuse detection is assistive, not blocking.
-  The system may search for similar prior question patterns and suggest them to the creator, but publish should not depend on finding a reusable match.
-- The system should not require exact question-text matching before publish.
-  Two questions may be academically equivalent even if wording, numbers, formatting, or images differ. V1 should therefore use reuse suggestions to help creators, but should not force an exact text match against previously stored questions before allowing publish.
-- Reuse suggestions should help creators, but publish eligibility depends only on whether the current assignment questions have complete confirmed concept mappings and question-level diagnostic-dimension rubric definitions.
-- In V1, reusable template retrieval should first use assignment-level metadata filters such as `subject`, `education board`, `class/grade`, `chapter`, and available concept context, and then use AI similarity matching to surface the top candidate reusable templates during authoring.
-- Diagnostic-dimension template retrieval should happen during question authoring, after assignment metadata, parsed question context, and likely concept context are available.
-- Diagnostic-dimension template retrieval should be automatic, but the creator should see only a compact provenance summary rather than raw retrieval internals.
-- If reusable question-template retrieval and diagnostic-dimension-template retrieval conflict, the diagnostic-dimension scaffold should take precedence for that specific dimension.
-- Structured provenance about which reusable question template(s) and diagnostic-dimension template(s) influenced the AI suggestion should be stored internally.
-
-#### Confirmed Assignment-Level Fields
-
-| Field | Purpose | Requirement |
-|---|---|---|
-| `assignment_id` | Unique assignment record identifier | System-generated |
-| `title` | Human-readable assignment name | Required before publish |
-| `type` | `assignment` or `assessment` | Required at creation |
-| `subject` | Academic subject | Required at creation |
-| `education_board` | Board/curriculum identifier | Required at creation |
-| `class_grade` | Grade/class level | Required at creation |
-| `chapter` | Chapter grouping | Required at creation |
-| `overall_concepts_tested` | Assignment-level concept summary | Optional, AI-assisted; required when the assignment spans multiple concepts |
-| `author_id` | Creator identity | System-recorded |
-| `publisher_id` | Publishing identity | System-recorded on publish |
-| `status` | `draft` / `ready_to_publish` / `published` / `archived` | System-managed |
-| `instructions` | Student/tutor instructions | Optional in current lock state |
-| `question_count` | Number of questions | System-derived |
-| `created_at` | Creation timestamp | System-generated |
-| `updated_at` | Last update timestamp | System-generated |
-| `published_at` | Publish timestamp | System-generated on publish |
-
-Assignment-level mandatory input rules currently locked:
-- At creation time, the creator must provide `subject`, `education board`, `class/grade`, `chapter`, and `assignment/assessment type`.
-- `overall_concepts_tested` is optional, but AI-assisted and required when the assignment clearly spans multiple concepts.
-
-#### Confirmed Question-Level Authoring Fields
-
-| Field | Purpose | Requirement |
-|---|---|---|
-| `question_id` | Unique question record identifier | System-generated |
-| `assignment_id` | Parent assignment reference | Required |
-| `question_number` | Display/order within assignment | Required |
-| `question_content` | Canonical question text/content | Required before publish |
-| `question_image` | Image representation, if applicable | Optional |
-| `subject` | Subject context | Inherited or stored |
-| `education_board` | Board/curriculum context | Inherited or stored |
-| `chapter` | Chapter context | Inherited or stored |
-| `mapped_concepts[]` | Linked concept evidence targets | Required before publish |
-| `diagnostic_dimensions[]` | Applicable evaluation dimensions | Required before publish |
-| `ai_suggested_mapping` | AI-proposed concept mapping | Stored when AI suggestion exists |
-| `ai_suggested_rubric_definition` | AI-proposed question evaluation definition | Stored when AI suggestion exists |
-| `selected_source` | `ai` / `reused` / `merged` / `manual` | Required for provenance |
-| `final_rubric_definition` | Final author-approved evaluation definition | Required before publish |
-| `expected_solution_path` | Reference solution flow | Optional; system should strongly recommend for some question types |
-| `alternate_methods_allowed` | Whether alternate methods are allowed | Required |
-| `accepted_alternate_methods` | Explicit alternate methods | Optional |
-| `status` | `incomplete` / `ready` | System-managed |
-
-Confirmed question-level storage rule:
-- The system stores both `AI suggestion` and `final selected version`.
-
-#### Reusable Template Foundation
-
-| Field | Purpose | Requirement |
-|---|---|---|
-| `template_id` | Unique reusable template identifier | System-generated |
-| `template_title` | Human-readable template label | Optional |
-| `subject` | Subject classification | Recommended |
-| `education_board` | Board/curriculum classification | Recommended |
-| `class_grade` | Grade/class classification | Recommended |
-| `chapter` | Chapter classification | Recommended |
-| `concepts[]` | Template concept targets | Recommended |
-| `diagnostic_dimension_templates[]` | Reusable dimension definitions | Recommended |
-| `reference_question_content` | Stored text or normalized representation of the template question, used for retrieval | Recommended |
-| `reference_question_pattern` | AI-generated normalized academic/solution pattern associated with the template question | Recommended |
-| `reference_solution_path` | Reference solving path | Optional |
-| `alternate_methods_allowed` | Alternate method rule | Recommended |
-| `accepted_alternate_methods` | Explicit alternate method list | Optional |
-| `created_by` | Template creator identity | System-recorded |
-| `approved_by` | Template approver identity | System-recorded |
-| `template_status` | Template lifecycle state | System-managed |
-
-Notes:
-- `reference_question_content` is the retrievable representation used for similarity-based reuse matching.
-- `reference_question_pattern` is a stored template feature generated or inferred by the system; it is not manually entered by the creator during retrieval.
-- When a new question is uploaded, the system derives a comparable question representation from the uploaded file and uses it to retrieve reusable template candidates.
-
-#### Diagnostic Dimension Template Foundation
-Reusable `diagnostic_dimension_templates` should be modeled as their own first-class reusable objects in the system.
-
-These templates are not question-ready rubrics. They are reusable evaluation scaffolds for a diagnostic dimension within a meaningful academic scope such as subject or concept family.
-
-Minimum required fields for a reusable diagnostic-dimension template:
-- `dimension_name`
-- `default_status_vocabulary`
-- `default_evaluation_principles[]`
-- `default_rules[]`
-- optional `template_guidance_text`
-
-Diagnostic-dimension templates should be scoped by `subject` or `concept family`, not treated as one fully global template across all academic contexts.
-
-Persistence trigger for diagnostic-dimension templates in V1:
-- A diagnostic-dimension template should be persisted only when `admin/content` explicitly promotes a dimension-level scaffold into the reusable template library.
-
-#### Final Rubric Definition Shape
-`final_rubric_definition` lives inside each question object.
-
-In stored form, `final_rubric_definition` should stay lean and rely on the parent question object for question-wide metadata, rather than duplicating outer question fields.
-
-Minimum stored structure for `final_rubric_definition`:
-- `concept_entries[]`
-
-Each `concept_entry` should contain:
-- `concept_name` or `concept_id`
-- `diagnostic_dimension_rubrics[]`
-- optional `reference_answer_or_expected_outcome`
-- optional `accepted_alternate_approaches`
-- optional `evidence_granularity_expectation`
-
-Each `diagnostic_dimension_rubric` should be a mixed structured object with:
-- `dimension_name`
-- `expected_status_vocabulary`
-- `evaluation_cues[]`
-- `rules[]`
-- optional `guidance_text`
-
-Question-specific rubric definitions may reference which reusable diagnostic-dimension templates they were adapted from.
-
-#### Remediation Inventory and Assignment Foundation
-- In V1, remediation uses a single underlying content model with labels such as `worksheet` or `assignment`, rather than separate remediation-specific content types.
-- AI should first produce structured remediation targets from evaluation output and then trigger a second retrieval phase against the published content inventory.
-- Structured remediation targets in V1 should include:
-  - `subject`
-  - `education_board`
-  - `class_grade`
-  - `chapter`
-  - `target_concepts[]`
-  - `target_diagnostic_dimensions[]`
-  - `target_status_or_weakness`
-  - `remediation_rationale`
-- Remediation retrieval should search the existing published inventory using those structured targets.
-- Remediation retrieval should reuse the same published question-level artifacts already required for evaluation authoring, including:
-  - concept mappings
-  - diagnostic dimensions
-  - question-level rubric definitions
-  - academic metadata
-- Remediation retrieval should first identify candidate source assignments and then filter/rank candidate questions within those assignments against the remediation targets.
-- Tutor remediation review should show source assignments grouped separately, with recommended questions preselected within each source assignment.
-- In V1, remediation may use questions from multiple source assignments.
-- After tutor approval, the system should create a single student-specific `work instance` with `work_type = remediation` that may contain selected questions from multiple source assignments.
-- A remediation `work instance` is always student-specific in V1 and is not promoted into the shared inventory.
-- Source provenance for each remediation question must be preserved internally even when the student receives one combined remediation work instance.
-- In V1, question order inside a remediation work instance has no special pedagogical semantics; the student-facing order should preserve the final assembled order approved by the tutor/system.
-- In V1, students do not need to see why each remediation question was selected.
-- In V1, parents should see a short tutor-approved remediation rationale at the remediation level.
-
-#### Work Instance Foundation
-
-The system should model a first-class student-specific `work instance` object for assigned work in V1.
-
-This common model should represent:
-- normal assigned `assignments`
-- normal assigned `assessments`
-- student-specific `remediation`
-
-Purpose:
-- A `published assignment/assessment` is the reusable inventory object.
-- A `work instance` is the student-specific assigned occurrence of that content.
-- A `submission` is the student's final answer package tied to that work instance.
-
-Relationship rules:
-- One `work instance` may reference one or more source assignments depending on `work_type`.
-- One `work instance` supports at most `one final submission` in V1.
-- `assignment`, `assessment`, and `remediation` remain visible as explicit `work_type` labels even though they share one common student-facing model.
-
-#### Work Instance Fields
-
-| Field | Purpose | Requirement |
-|---|---|---|
-| `work_instance_id` | Unique student-specific work instance identifier | System-generated |
-| `student_id` | Student receiving remediation | Required |
-| `assigned_by` | Tutor identity assigning the work instance | Required |
-| `work_type` | `assignment` / `assessment` / `remediation` | Required |
-| `source_assignment_ids[]` | Source assignment references used to construct the work instance | Required |
-| `selected_question_ids[]` | Selected source-question references included in the work instance | Optional for normal assignment/assessment; required when the work instance is question-selective |
-| `assigned_at` | Assignment timestamp | System-generated |
-| `due_at` | Optional due timestamp | Optional |
-| `assigned_by` | Tutor identity assigning remediation | Required |
-| `status` | Work-instance lifecycle state | System-managed |
-| `submission_id` | Linked final submission for the work instance | Optional until submitted |
-| `target_concepts[]` | Concepts targeted by the work instance when used for remediation | Optional for normal assignment/assessment; required for remediation |
-| `target_diagnostic_dimensions[]` | Diagnostic weaknesses targeted by the work instance when used for remediation | Optional for normal assignment/assessment; required for remediation |
-| `tutor_approved_rationale` | Tutor-approved rationale for remediation or assignment context | Optional for normal assignment/assessment; required for remediation parent visibility |
-| `attempt_completeness` | Attempt completeness marker for the work instance | System-managed |
-
-Notes:
-- For normal assignments and assessments, `source_assignment_ids[]` will usually contain exactly one published source assignment.
-- For remediation, `source_assignment_ids[]` may contain multiple source assignments and `selected_question_ids[]` becomes essential.
-- `assigned_by` should be stored once as the tutor identity responsible for assigning the student-facing work instance.
-- The `work instance` is the primary object surfaced in student `My Work`, tutor assignment/follow-up views, and parent chronological history.
-
-#### Evaluation Record Foundation
-
-The system should create a first-class `evaluation record` object for each submitted work instance after evaluation begins.
-
-Purpose:
-- The evaluation record is the official evaluated outcome container for one student-specific work instance.
-- It provides a single final evaluated artifact linking submission, question evidence, concept evaluations, final summary, and finalization metadata.
-
-Relationship rules:
-- One `work instance` may have at most one final `submission` in V1.
-- One final `submission` may produce one official `evaluation record`.
-- Student, parent, and tutor approved-output surfaces should anchor on the `evaluation record`, not assemble final state ad hoc from scattered lower-level records.
-
-Minimum evaluation record fields:
-- `evaluation_record_id`
-- `work_instance_id`
-- `submission_id`
-- `student_id`
-- `tutor_id`
+Data created/updated:
+- New `work_instance`
+- `assigned_by`
+- `assigned_at`
+- optional `due_at`
+- source assignment reference(s)
 - `work_type`
-- `evaluation_status`
-- `final_overall_summary`
-- `finalized_at`
-- `linked_concept_evaluation_ids[]`
-- `linked_question_evidence_ids[]`
+- student-visible work entry
+- tutor-visible assigned-work entry
+- assignment audit/event record
 
-### 6B. Entity States and Rules
+API/Service touchpoints:
+- authentication/authorization service
+- student lookup/eligibility service
+- published inventory lookup
+- assignment creation / `work_instance` persistence service
+- tutor/student workspace visibility update service
+- audit/event logging service
 
-#### Assignment and Question Lifecycle Rules
-Assignment states in V1:
-- `draft`
-- `ready_to_publish`
-- `published`
-- `archived`
+Business rules applied:
+- Only published in-scope content may be assigned.
+- Assignment is single-student only in V1.
+- Duplicate active assignment triggers a warning but not a hard block.
+- Due date is optional.
+- Assignment creates a student-specific `work_instance`, not a direct submission.
 
-Question states in V1:
-- `incomplete`
-- `ready`
+Linked screens:
+- `Tutor Workspace`
+- `Assignments to Students`
+- student selector
+- published inventory picker
+- assignment confirmation view
+- student `My Work`
 
-Rules:
-- An assignment starts in `draft`.
-- In `draft`, the creator must provide `subject`, `education board`, `class/grade`, `chapter`, and `assignment/assessment type`.
-- An assignment may move to `ready_to_publish` only when every question is `ready`.
-- A question is `ready` only when it has:
-  - confirmed concept mapping
-  - confirmed diagnostic dimensions
-  - final rubric definition
-  - alternate methods allowed flag
-- `expected solution path` is optional and never blocks publish, though the system should strongly recommend it for question types where it improves evaluation reliability.
-- An assignment may move to `published` only from `ready_to_publish`.
-- Once `published`, evaluation-critical fields must not be edited in place.
-- Evaluation-critical fields include:
-  - question content
-  - concept mapping
-  - diagnostic dimensions
-  - rubric definitions
-- Changes to evaluation-critical fields after publish must create a new draft/version.
-- Non-evaluation-critical published fields such as title, instructions, or display formatting may be edited in place.
-- `archived` assignments cannot be newly assigned, but must remain available for historical reporting and prior evaluation visibility.
-- If any question remains incomplete, the assignment cannot move to `ready_to_publish` or `published`.
+Linked requirements:
+- `FR-TBD`
 
-#### Work Instance Lifecycle Rules
-Work instance states in V1:
-- `assigned`
-- `in_progress`
-- `submitted`
-- `evaluated`
-- `closed`
+System interaction notes:
+- The system must validate assignability at confirmation time, not only at initial selection time.
+- The system must not silently create duplicate visibility inconsistencies between tutor and student views.
+- The system should preserve source lineage needed for later submission and evaluation flows.
 
-Rules:
-- `assigned` means the tutor has assigned the work instance and the student has not started work.
-- `in_progress` begins only when the student starts answer upload/work activity.
-- `submitted` means the student has submitted final answers for the work instance.
-- `evaluated` means tutor-approved evaluation of the remediation submission is complete.
-- `closed` is reached automatically immediately after tutor-approved evaluation in V1.
-- A work instance must not be reopened or reassigned after evaluation/closure.
-- If more remediation is needed, the system must create a new student-specific work instance with `work_type = remediation`.
+Open questions:
+- None blocking for `UF-01`.
 
-Attempt completeness in V1:
-- `attempt_completeness` should be stored as a separate top-level field on the work instance.
-- Supported values:
-  - `not_attempted`
-  - `partially_attempted`
-  - `fully_attempted`
-- `attempt_completeness` should be system-determined in V1 based on whether assigned questions received student answers or were explicitly left not attempted.
-
-Work instance type rules:
-- `assignment`, `assessment`, and `remediation` share one common lifecycle model in V1.
-- `work_type` affects source-content structure, rationale requirements, and parent visibility semantics, but does not require a separate top-level lifecycle state model.
-- For `remediation`, `target_concepts[]`, `target_diagnostic_dimensions[]`, and `tutor_approved_rationale` are required.
-- For normal `assignment` and `assessment`, those remediation-specific fields may be empty.
-
-#### Publishing and Persistence Rules
-- Mappings must exist before an assignment/assessment is published.
-- If a question lacks required mapping/evaluation structure, it is not publishable.
-- If such a gap remains, that question is blocked from evaluation.
-- The system persists the `assignment question instance` and its finalized mappings/definitions.
-- Reusable `question pattern/template` data is persisted for future suggestion and reuse.
-- Reuse is `suggested`, not silently auto-applied.
-- Reusable mappings are saved in-assignment first and can be explicitly promoted to the reusable library.
-
-#### Mandatory Question-Level Setup Before Publish
-- `question content`
-- `concept mapping`
-- `diagnostic dimensions`
-
-#### Optional Question-Level Setup Before Publish
-- `expected solution path`
-- `explicit accepted alternate methods`
-
-#### Diagnostic Model
-V1 evaluation dimensions are:
-- `concept mastery`
-- `logical-step correctness`
-- `calculation/execution accuracy`
-
-The system does not evaluate only for `concept gaps`. During evaluation, AI and tutor must also identify weakness patterns in `logical-step correctness` and `calculation/execution accuracy`.
-Each of these three diagnostic dimensions has its own rubric definition, and those rubric definitions can vary by `subject`, `chapter`, `concept`, and `question`.
-These dimensions are reusable at the framework level, but each question has its own question-specific evaluation definition for those dimensions.
-
-Concept status vocabulary in V1:
-- `Met`
-- `Partially Met`
-- `Not Met`
-- `Insufficient Evidence`
-
-Recommended diagnostic dimension vocabularies:
-- `Concept Mastery`: `Met`, `Partially Met`, `Not Met`, `Insufficient Evidence`
-- `Logical-Step Correctness`: `Correct`, `Partially Correct`, `Incorrect`, `Not Attempted`, `Insufficient Evidence`
-- `Calculation/Execution Accuracy`: `No Issue`, `Minor Error`, `Major Error`, `Not Assessable`
-
-#### Submission and Evaluation Rules
-- In V1, each student is allowed only `one final submission` per assignment.
-- V1 stores only `AI-interpreted evidence` post-submission, not raw OCR/extracted text.
-- AI model version and rubric version are not stored in V1.
-- Concept judgments are qualitative and are not score-aggregated in V1.
-- No question weightage is assigned in V1.
-- Each concept is evaluated independently using linked question evidence.
-- The system must generate concept-specific judgments backed by question evidence, not a single assignment-wide met/unmet output.
-- The evaluation pipeline is `question-level structured evidence -> AI concept/dimension judgment -> tutor finalization`.
-- AI must produce reasons at both `question level` and `concept level`.
-- During an AI evaluation session, the system evaluates questions in-session and uses the resulting question-level judgments as evidence for concept-level and diagnostic-dimension judgments.
-- The system is not required to persist each question evaluation as an intermediate step during AI reasoning.
-- After the AI evaluation session completes, the system persists the structured question-level outputs, concept-level outputs, and assignment-level summary for tutor review and downstream use.
-
-#### Confirmed Submission-Level Fields
-
-| Field | Purpose | Requirement |
-|---|---|---|
-| `submission_id` | Unique submission identifier | System-generated |
-| `work_instance_id` | Parent student-specific work instance reference | Required |
-| `assignment_id` | Parent assignment reference | Required |
-| `student_id` | Student identity | Required |
-| `tutor_id` | Assigned tutor identity | Required |
-| `submitted_artifacts` | Uploaded images/PDF/pages | Required |
-| `submission_status` | Submission lifecycle state | System-managed |
-| `submitted_at` | Submission timestamp | System-generated |
-| `evaluation_status` | Evaluation lifecycle state | System-managed |
-| `finalized_at` | Finalization timestamp | System-generated on finalization |
-
-Submission relationship note:
-- `assignment_id` remains useful for source-content lineage, but the primary operational parent of a submission is `work_instance_id`.
-
-#### Confirmed Question Evidence Fields
-
-| Field | Purpose | Requirement |
-|---|---|---|
-| `submission_question_id` | Submission-specific question evidence record | System-generated |
-| `question_id` | Source question reference | Required |
-| `submitted_answer_images[]` | Original student-submitted answer images for the question, preserved in submitted order | Required unless the question is explicitly `not attempted` |
-| `ai_question_evaluation` | AI's structured evaluation object for the question across applicable concepts and diagnostic dimensions | Required |
-| `final_tutor_question_evaluation` | Tutor-approved structured evaluation object for the question across applicable concepts and diagnostic dimensions | Required before finalization |
-| `ai_question_evidence_summary` | AI-generated evidence summary for the question | Required |
-| `linked_concepts[]` | Concepts supported by this question evidence | Required |
-| `linked_dimensions[]` | Diagnostic dimensions evaluated by this question evidence | Required |
-| `tutor_final_question_feedback` | Tutor-approved final feedback for the question | Required before finalization |
-| `evidence_status` | Evidence review state | System-managed |
-
-`ai_question_evaluation` and `final_tutor_question_evaluation` are structured objects, not flat scalar fields. They should capture the formal question-level evaluation result used for concept-level aggregation and tutor review.
-
-Recommended question-level evaluation object shape:
-- `concept_findings[]`
-- `diagnostic_dimension_findings[]`
-- `question_remarks`
-
-Recommended diagnostic dimension finding shape:
-- `dimension_name`
-- `status`
-- `evidence_summary`
-
-#### Confirmed Concept Evaluation Fields
-
-| Field | Purpose | Requirement |
-|---|---|---|
-| `concept_evaluation_id` | Unique concept evaluation record | System-generated |
-| `submission_id` | Parent submission reference | Required |
-| `concept_name` | Evaluated concept name | Required |
-| `ai_concept_status` | AI-suggested concept status | Required |
-| `final_concept_status` | Tutor-approved final concept status | Required before finalization |
-| `supporting_question_ids[]` | Question evidence linked to this concept | Required |
-| `ai_concept_reasoning_summary` | AI concept-level reasoning summary | Required |
-| `final_tutor_remarks` | Tutor-approved concept remarks | Required before finalization |
-| `recommended_remediation` | Remediation output for concept/dimension weakness | Optional but expected when weakness exists |
-| `dimension_findings[]` | Dimension-specific findings under this concept | Required |
-
-#### Tutor-Approved Evaluation Object Shape
-
-| Object | Fields |
-|---|---|
-| `Assignment Evaluation` | `submission_id`, `student_id`, `assignment_id`, `subject`, `education_board`, `class/grade`, `chapter`, `tutor_id`, `evaluation_status`, `final_overall_summary` |
-| `Concept Evaluation` | `concept_id` / `concept_name`, `concept_status`, `supporting_question_ids`, `supporting_question_evidence_summary`, `diagnostic_dimension_findings[]`, `final_tutor_remarks`, `recommended_remediation_ids` or `remediation_summary` |
-| `Diagnostic Dimension Finding` | `dimension_name`, `status`, `evidence_summary` |
-| `Question Evidence` | `question_id`, `linked_concepts[]`, `linked_dimensions[]`, `ai_question_evaluation`, `final_tutor_question_evaluation`, `ai_evidence_summary`, `tutor_final_question_feedback` |
-
-Example question evidence record:
-
-```json
-{
-  "submission_question_id": "SQ-101",
-  "question_id": "Q-3",
-  "linked_concepts": ["Newton's Second Law"],
-  "linked_dimensions": [
-    "Concept Mastery",
-    "Logical-Step Correctness",
-    "Calculation/Execution Accuracy"
-  ],
-  "ai_question_evaluation": {
-    "concept_findings": [
-      {
-        "concept_name": "Newton's Second Law",
-        "status": "Partially Met"
-      }
-    ],
-    "diagnostic_dimension_findings": [
-      {
-        "dimension_name": "Concept Mastery",
-        "status": "Partially Met",
-        "evidence_summary": "Student selected the correct formula but did not apply net force direction correctly."
-      },
-      {
-        "dimension_name": "Logical-Step Correctness",
-        "status": "Incorrect",
-        "evidence_summary": "Intermediate setup omitted force decomposition."
-      },
-      {
-        "dimension_name": "Calculation/Execution Accuracy",
-        "status": "No Issue",
-        "evidence_summary": "No arithmetic issue in the visible steps."
-      }
-    ],
-    "question_remarks": "Student understands the formula but struggles with structured setup."
-  },
-  "final_tutor_question_evaluation": {
-    "concept_findings": [
-      {
-        "concept_name": "Newton's Second Law",
-        "status": "Partially Met"
-      }
-    ],
-    "diagnostic_dimension_findings": [
-      {
-        "dimension_name": "Concept Mastery",
-        "status": "Partially Met",
-        "evidence_summary": "Formula selection is correct, but force direction understanding is inconsistent."
-      },
-      {
-        "dimension_name": "Logical-Step Correctness",
-        "status": "Partially Correct",
-        "evidence_summary": "Setup is incomplete rather than fully incorrect."
-      },
-      {
-        "dimension_name": "Calculation/Execution Accuracy",
-        "status": "No Issue",
-        "evidence_summary": "No execution error observed."
-      }
-    ],
-    "question_remarks": "Needs practice in setting up net-force problems step by step."
-  },
-  "ai_question_evidence_summary": "AI identified correct formula usage but weak setup reasoning.",
-  "tutor_final_question_feedback": "You chose the right formula, but you need to break the problem into force setup steps before solving.",
-  "evidence_status": "finalized"
-}
-```
-
-## 7. User Flow Catalog
+## 9. Functional Requirements
 
 Pending.
 
-## 8. Functional Requirements
+## 10. Non-Functional Requirements
 
 Pending.
 
-## 9. Non-Functional Requirements
-
-Pending.
-
-## 10. UX Requirements
+## 11. UX Requirements
 
 ### Locked Evaluation and Review Structure
 
@@ -1323,7 +1036,7 @@ Answer-to-question mapping reliability rule in V1:
 - The system should avoid relying on inference when the student has already uploaded answers into explicit question slots.
 - If the system still detects ambiguity within a question submission, that ambiguity should be surfaced for tutor review rather than silently guessed.
 
-## 11. Integrations and Dependencies
+## 12. Integrations and Dependencies
 
 ### Locked Dependencies
 - Assignment/worksheet inventory
@@ -1331,7 +1044,7 @@ Answer-to-question mapping reliability rule in V1:
 - Reusable question/template library
 - Handwritten submission ingestion
 
-## 12. Risks and Mitigations
+## 13. Risks and Mitigations
 
 ### Locked Risks
 - Misdiagnosis may lead to incorrect remediation and loss of trust.
@@ -1339,11 +1052,11 @@ Answer-to-question mapping reliability rule in V1:
 - Tutor review burden may become too high if AI output quality is inconsistent.
 - Weak or inconsistent mapping/rubric authoring may reduce downstream evaluation quality.
 
-## 13. Acceptance Criteria Matrix
+## 14. Acceptance Criteria Matrix
 
 Pending.
 
-## 14. Open Questions and Decision Log
+## 15. Open Questions and Decision Log
 
 ### Open Questions
 - Exact lifecycle-state validation rules for assignment-level and question-level fields
@@ -1376,3 +1089,568 @@ Pending.
 - `tutor_approved_linked_assignment_ids[]`
 - `tutor_approved_rationale`
 - `assignment_decision` (`assigned` / `suggested_only` / `not_assigned`)
+
+## 16. Data Model / Implementation Notes
+
+### Assignment Creation Flow Foundation
+In V1, the creator of an assignment or assessment uploads the actual assignment questions as images or PDF and provides:
+- `subject` required
+- `education board` required
+- `class/grade` required
+- `chapter` required
+- `assignment/assessment type` required
+- `overall concepts tested` optional, but AI-assisted and required when the assignment clearly spans multiple concepts
+
+This assignment-level information gives the system the academic context needed to interpret the uploaded questions more accurately. It also narrows the space for AI-generated question mappings, rubric definitions, and reuse suggestions.
+
+In V1, this metadata must be entered before question upload so it is available when the system begins parsing uploaded questions and retrieving reusable template candidates.
+
+For each question, the system generates:
+- AI-suggested `question-to-concept mapping`
+- AI-suggested `question-specific rubric/evaluation definition`
+- suggested `reusable question pattern/template` matches from prior data
+- AI-suggested `assignment-level concept/rubric summary`
+
+Here:
+- `AI-suggested question-to-concept mapping` means the system proposes which concept or concepts the uploaded question is testing.
+- `AI-suggested question-specific rubric/evaluation definition` means the system proposes how that specific question should be evaluated across the supported diagnostic dimensions.
+- `Suggested reusable question pattern/template matches` means the system surfaces prior similar question patterns whose mappings or rubric structures may be reused or adapted.
+- `AI-suggested assignment-level concept/rubric summary` means the system derives an overall summary of the concepts covered in the assignment and the diagnostic structure implied by the uploaded questions.
+
+Reusable template retrieval behavior in V1:
+- Retrieval begins automatically immediately after assignment upload for all uploaded questions.
+- Retrieval uses assignment-level metadata first to narrow candidates using:
+  - `subject`
+  - `education board`
+  - `class/grade`
+  - `chapter`
+  - `overall concepts tested` when available
+  - `question type` when inferable
+- After metadata-based narrowing, the system uses AI/RAG-style similarity matching over stored reusable-template question representations to identify the top reusable template candidates for each question.
+- The system shows the `top 3` reusable template candidates per question.
+- Reusable question-template candidates should be shown only if they cross a fixed global minimum match threshold in V1.
+- If no strong reusable candidate is found, the system shows only the fresh AI-generated mapping/rubric suggestion.
+- Retrieval runs automatically and also supports manual re-run by the creator.
+- Retrieval runs again if assignment metadata is changed.
+- Retrieval runs again if the parsed question changes or the uploaded file is replaced.
+- For an uploaded question, the system derives a comparable question representation from the uploaded image/PDF; the creator does not manually provide a retrieval pattern.
+- The minimum match threshold should be system-controlled and not user-configurable in V1.
+
+Two retrieval layers operate during question authoring in V1:
+- `Reusable question-template retrieval`
+  This helps answer: `Have we seen a similar question before?`
+  It supports reuse of prior question-level mappings and rubric structures.
+- `Diagnostic-dimension-template retrieval`
+  This helps answer: `What reusable scaffold should define this diagnostic dimension for this kind of question?`
+  It supports construction of dimension-specific rubric definitions for the current question.
+
+These two retrieval layers should run separately but converge into one coherent AI-generated suggestion for the creator.
+- The creator should not need to manually manage two different retrieval systems.
+- The creator should see one AI suggestion, optionally accompanied by a compact provenance summary.
+- Diagnostic-dimension-template retrieval should also use thresholding in V1 so that weak scaffold matches do not influence the AI-generated rubric suggestion.
+
+Reusable template retrieval flow in V1:
+1. Creator enters required assignment-level metadata.
+2. Creator uploads assignment questions as images or PDF.
+3. System parses the uploaded assignment into question units.
+4. For each question, the system derives a machine-usable question representation from the uploaded file.
+5. The system narrows the reusable-template search space using assignment-level metadata and inferred question type where available.
+6. The system performs AI/RAG-style similarity retrieval against stored reusable-template question representations.
+7. The system returns the top reusable template candidates for each question.
+8. The system also generates a fresh AI mapping/rubric suggestion for each question.
+9. The creator reviews reusable suggestions side by side with fresh AI-generated suggestions and can accept, edit, merge, or ignore them.
+10. The creator finalizes the question setup before save/publish.
+
+During authoring, the creator sees:
+- `AI-generated mapping/rubric suggestion`
+- `reused mapping/template suggestion`
+- `side-by-side comparison`
+- ability to choose one, edit either, merge, or create a fresh version
+- ability to review and edit the AI-suggested `assignment-level concept/rubric summary` before save/publish
+
+This means the creator is not forced to accept either the AI-generated structure or the reuse suggestion as-is. The creator can compare both, modify them, combine parts of them, or create a new finalized version when needed.
+
+In V1, the system should store a derived `assignment concept coverage summary`.
+- This is a stored derived summary, not an independently authored object.
+- The creator may review it, but may not edit it directly.
+- Minimum structure:
+  - `assignment_id`
+  - `subject`
+  - `education_board`
+  - `class_grade`
+  - `chapter`
+  - `concept_summaries[]`
+- Each `concept_summary` should contain:
+  - `concept_name` or `concept_id`
+  - `linked_question_ids[]`
+  - `linked_question_count`
+  - `covered_diagnostic_dimensions[]`
+  - optional `summary_notes`
+
+### Persistence and Reuse Model
+- The system persists question mappings and question-specific evaluation definitions at the `assignment question instance` level.
+  Here, `question mappings` means the confirmed mapping from a specific uploaded question to one or more concepts.
+  `Question-specific evaluation definitions` means the confirmed rubric definitions for the supported diagnostic dimensions for that specific question.
+  This data is persisted because it is the official evaluation setup that the AI will later use when student submissions are evaluated against that uploaded assignment.
+- `Assignment question instance` means a specific question as it exists inside a specific uploaded assignment or assessment.
+  Even if a similar question appears elsewhere, the assignment question instance is the concrete version that belongs to that assignment and carries the final approved mapping and rubric definitions used for production evaluation.
+- The system may also persist reusable `question pattern/template` records for future suggestion and reuse.
+  These reusable records are a library layer above individual assignment questions. They help the system suggest prior mappings and rubric structures when a new uploaded question looks similar to something seen before.
+- Reusable question pattern/template records are not the same as the official assignment question instance.
+  The assignment question instance remains the authoritative production object used for student evaluation. Reusable templates exist to improve future authoring efficiency.
+- A reusable question pattern/template should be persisted only when `admin/content` explicitly promotes a finalized assignment-question setup into the reusable library.
+- Not every finalized assignment question should automatically become a reusable template in V1.
+- Reuse detection is assistive, not blocking.
+  The system may search for similar prior question patterns and suggest them to the creator, but publish should not depend on finding a reusable match.
+- The system should not require exact question-text matching before publish.
+  Two questions may be academically equivalent even if wording, numbers, formatting, or images differ. V1 should therefore use reuse suggestions to help creators, but should not force an exact text match against previously stored questions before allowing publish.
+- Reuse suggestions should help creators, but publish eligibility depends only on whether the current assignment questions have complete confirmed concept mappings and question-level diagnostic-dimension rubric definitions.
+- In V1, reusable template retrieval should first use assignment-level metadata filters such as `subject`, `education board`, `class/grade`, `chapter`, and available concept context, and then use AI similarity matching to surface the top candidate reusable templates during authoring.
+- Diagnostic-dimension template retrieval should happen during question authoring, after assignment metadata, parsed question context, and likely concept context are available.
+- Diagnostic-dimension template retrieval should be automatic, but the creator should see only a compact provenance summary rather than raw retrieval internals.
+- If reusable question-template retrieval and diagnostic-dimension-template retrieval conflict, the diagnostic-dimension scaffold should take precedence for that specific dimension.
+- Structured provenance about which reusable question template(s) and diagnostic-dimension template(s) influenced the AI suggestion should be stored internally.
+
+### Confirmed Assignment-Level Fields
+
+| Field | Purpose | Requirement |
+|---|---|---|
+| `assignment_id` | Unique assignment record identifier | System-generated |
+| `title` | Human-readable assignment name | Required before publish |
+| `type` | `assignment` or `assessment` | Required at creation |
+| `subject` | Academic subject | Required at creation |
+| `education_board` | Board/curriculum identifier | Required at creation |
+| `class_grade` | Grade/class level | Required at creation |
+| `chapter` | Chapter grouping | Required at creation |
+| `overall_concepts_tested` | Assignment-level concept summary | Optional, AI-assisted; required when the assignment spans multiple concepts |
+| `author_id` | Creator identity | System-recorded |
+| `publisher_id` | Publishing identity | System-recorded on publish |
+| `status` | `draft` / `ready_to_publish` / `published` / `archived` | System-managed |
+| `instructions` | Student/tutor instructions | Optional in current lock state |
+| `question_count` | Number of questions | System-derived |
+| `created_at` | Creation timestamp | System-generated |
+| `updated_at` | Last update timestamp | System-generated |
+| `published_at` | Publish timestamp | System-generated on publish |
+
+Assignment-level mandatory input rules currently locked:
+- At creation time, the creator must provide `subject`, `education board`, `class/grade`, `chapter`, and `assignment/assessment type`.
+- `overall_concepts_tested` is optional, but AI-assisted and required when the assignment clearly spans multiple concepts.
+
+### Confirmed Question-Level Authoring Fields
+
+| Field | Purpose | Requirement |
+|---|---|---|
+| `question_id` | Unique question record identifier | System-generated |
+| `assignment_id` | Parent assignment reference | Required |
+| `question_number` | Display/order within assignment | Required |
+| `question_content` | Canonical question text/content | Required before publish |
+| `question_image` | Image representation, if applicable | Optional |
+| `subject` | Subject context | Inherited or stored |
+| `education_board` | Board/curriculum context | Inherited or stored |
+| `chapter` | Chapter context | Inherited or stored |
+| `mapped_concepts[]` | Linked concept evidence targets | Required before publish |
+| `diagnostic_dimensions[]` | Applicable evaluation dimensions | Required before publish |
+| `ai_suggested_mapping` | AI-proposed concept mapping | Stored when AI suggestion exists |
+| `ai_suggested_rubric_definition` | AI-proposed question evaluation definition | Stored when AI suggestion exists |
+| `selected_source` | `ai` / `reused` / `merged` / `manual` | Required for provenance |
+| `final_rubric_definition` | Final author-approved evaluation definition | Required before publish |
+| `expected_solution_path` | Reference solution flow | Optional; system should strongly recommend for some question types |
+| `alternate_methods_allowed` | Whether alternate methods are allowed | Required |
+| `accepted_alternate_methods` | Explicit alternate methods | Optional |
+| `status` | `incomplete` / `ready` | System-managed |
+
+Confirmed question-level storage rule:
+- The system stores both `AI suggestion` and `final selected version`.
+
+### Reusable Template Foundation
+
+| Field | Purpose | Requirement |
+|---|---|---|
+| `template_id` | Unique reusable template identifier | System-generated |
+| `template_title` | Human-readable template label | Optional |
+| `subject` | Subject classification | Recommended |
+| `education_board` | Board/curriculum classification | Recommended |
+| `class_grade` | Grade/class classification | Recommended |
+| `chapter` | Chapter classification | Recommended |
+| `concepts[]` | Template concept targets | Recommended |
+| `diagnostic_dimension_templates[]` | Reusable dimension definitions | Recommended |
+| `reference_question_content` | Stored text or normalized representation of the template question, used for retrieval | Recommended |
+| `reference_question_pattern` | AI-generated normalized academic/solution pattern associated with the template question | Recommended |
+| `reference_solution_path` | Reference solving path | Optional |
+| `alternate_methods_allowed` | Alternate method rule | Recommended |
+| `accepted_alternate_methods` | Explicit alternate method list | Optional |
+| `created_by` | Template creator identity | System-recorded |
+| `approved_by` | Template approver identity | System-recorded |
+| `template_status` | Template lifecycle state | System-managed |
+
+Notes:
+- `reference_question_content` is the retrievable representation used for similarity-based reuse matching.
+- `reference_question_pattern` is a stored template feature generated or inferred by the system; it is not manually entered by the creator during retrieval.
+- When a new question is uploaded, the system derives a comparable question representation from the uploaded file and uses it to retrieve reusable template candidates.
+
+### Diagnostic Dimension Template Foundation
+Reusable `diagnostic_dimension_templates` should be modeled as their own first-class reusable objects in the system.
+
+These templates are not question-ready rubrics. They are reusable evaluation scaffolds for a diagnostic dimension within a meaningful academic scope such as subject or concept family.
+
+Minimum required fields for a reusable diagnostic-dimension template:
+- `dimension_name`
+- `default_status_vocabulary`
+- `default_evaluation_principles[]`
+- `default_rules[]`
+- optional `template_guidance_text`
+
+Diagnostic-dimension templates should be scoped by `subject` or `concept family`, not treated as one fully global template across all academic contexts.
+
+Persistence trigger for diagnostic-dimension templates in V1:
+- A diagnostic-dimension template should be persisted only when `admin/content` explicitly promotes a dimension-level scaffold into the reusable template library.
+
+### Final Rubric Definition Shape
+`final_rubric_definition` lives inside each question object.
+
+In stored form, `final_rubric_definition` should stay lean and rely on the parent question object for question-wide metadata, rather than duplicating outer question fields.
+
+Minimum stored structure for `final_rubric_definition`:
+- `concept_entries[]`
+
+Each `concept_entry` should contain:
+- `concept_name` or `concept_id`
+- `diagnostic_dimension_rubrics[]`
+- optional `reference_answer_or_expected_outcome`
+- optional `accepted_alternate_approaches`
+- optional `evidence_granularity_expectation`
+
+Each `diagnostic_dimension_rubric` should be a mixed structured object with:
+- `dimension_name`
+- `expected_status_vocabulary`
+- `evaluation_cues[]`
+- `rules[]`
+- optional `guidance_text`
+
+Question-specific rubric definitions may reference which reusable diagnostic-dimension templates they were adapted from.
+
+### Remediation Inventory and Assignment Foundation
+- AI should first produce structured remediation targets from evaluation output and then trigger a second retrieval phase against the published content inventory.
+- Structured remediation targets in V1 should include:
+  - `subject`
+  - `education_board`
+  - `class_grade`
+  - `chapter`
+  - `target_concepts[]`
+  - `target_diagnostic_dimensions[]`
+  - `target_status_or_weakness`
+  - `remediation_rationale`
+- Remediation retrieval should search the existing published inventory using those structured targets.
+- Remediation retrieval should reuse the same published question-level artifacts already required for evaluation authoring, including:
+  - concept mappings
+  - diagnostic dimensions
+  - question-level rubric definitions
+  - academic metadata
+- Remediation retrieval should first identify candidate source assignments and then filter/rank candidate questions within those assignments against the remediation targets.
+- Tutor remediation review should show source assignments grouped separately, with recommended questions preselected within each source assignment.
+- After tutor approval, the system should create a single student-specific `work instance` with `work_type = remediation` that may contain selected questions from multiple source assignments.
+- A remediation `work instance` is always student-specific in V1 and is not promoted into the shared inventory.
+- In V1, question order inside a remediation work instance has no special pedagogical semantics; the student-facing order should preserve the final assembled order approved by the tutor/system.
+
+### Work Instance Foundation
+
+The system should model a first-class student-specific `work instance` object for assigned work in V1.
+
+This common model should represent:
+- normal assigned `assignments`
+- normal assigned `assessments`
+- student-specific `remediation`
+
+Purpose:
+- A `published assignment/assessment` is the reusable inventory object.
+- A `work instance` is the student-specific assigned occurrence of that content.
+- A `submission` is the student's final answer package tied to that work instance.
+
+Relationship rules:
+- One `work instance` may reference one or more source assignments depending on `work_type`.
+- One `work instance` supports at most `one final submission` in V1.
+- `assignment`, `assessment`, and `remediation` remain visible as explicit `work_type` labels even though they share one common student-facing model.
+
+#### Work Instance Fields
+
+| Field | Purpose | Requirement |
+|---|---|---|
+| `work_instance_id` | Unique student-specific work instance identifier | System-generated |
+| `student_id` | Student receiving remediation | Required |
+| `assigned_by` | Tutor identity assigning the work instance | Required |
+| `work_type` | `assignment` / `assessment` / `remediation` | Required |
+| `source_assignment_ids[]` | Source assignment references used to construct the work instance | Required |
+| `selected_question_ids[]` | Selected source-question references included in the work instance | Optional for normal assignment/assessment; required when the work instance is question-selective |
+| `assigned_at` | Assignment timestamp | System-generated |
+| `due_at` | Optional due timestamp | Optional |
+| `assigned_by` | Tutor identity assigning remediation | Required |
+| `status` | Work-instance lifecycle state | System-managed |
+| `submission_id` | Linked final submission for the work instance | Optional until submitted |
+| `target_concepts[]` | Concepts targeted by the work instance when used for remediation | Optional for normal assignment/assessment; required for remediation |
+| `target_diagnostic_dimensions[]` | Diagnostic weaknesses targeted by the work instance when used for remediation | Optional for normal assignment/assessment; required for remediation |
+| `tutor_approved_rationale` | Tutor-approved rationale for remediation or assignment context | Optional for normal assignment/assessment; required for remediation parent visibility |
+| `attempt_completeness` | Attempt completeness marker for the work instance | System-managed |
+
+Notes:
+- For normal assignments and assessments, `source_assignment_ids[]` will usually contain exactly one published source assignment.
+- For remediation, `source_assignment_ids[]` may contain multiple source assignments and `selected_question_ids[]` becomes essential.
+- `assigned_by` should be stored once as the tutor identity responsible for assigning the student-facing work instance.
+- The `work instance` is the primary object surfaced in student `My Work`, tutor assignment/follow-up views, and parent chronological history.
+
+### Evaluation Record Foundation
+
+The system should create a first-class `evaluation record` object for each submitted work instance after evaluation begins.
+
+Purpose:
+- The evaluation record is the official evaluated outcome container for one student-specific work instance.
+- It provides a single final evaluated artifact linking submission, question evidence, concept evaluations, final summary, and finalization metadata.
+
+Relationship rules:
+- One `work instance` may have at most one final `submission` in V1.
+- One final `submission` may produce one official `evaluation record`.
+- Student, parent, and tutor approved-output surfaces should anchor on the `evaluation record`, not assemble final state ad hoc from scattered lower-level records.
+
+Minimum evaluation record fields:
+- `evaluation_record_id`
+- `work_instance_id`
+- `submission_id`
+- `student_id`
+- `tutor_id`
+- `work_type`
+- `evaluation_status`
+- `final_overall_summary`
+- `finalized_at`
+- `linked_concept_evaluation_ids[]`
+- `linked_question_evidence_ids[]`
+
+### Assignment and Question Lifecycle Rules
+Assignment states in V1:
+- `draft`
+- `ready_to_publish`
+- `published`
+- `archived`
+
+Question states in V1:
+- `incomplete`
+- `ready`
+
+Rules:
+- An assignment starts in `draft`.
+- In `draft`, the creator must provide `subject`, `education board`, `class/grade`, `chapter`, and `assignment/assessment type`.
+- `expected solution path` is optional and never blocks publish, though the system should strongly recommend it for question types where it improves evaluation reliability.
+- Evaluation-critical fields include:
+  - question content
+  - concept mapping
+  - diagnostic dimensions
+  - rubric definitions
+- Changes to evaluation-critical fields after publish must create a new draft/version.
+- Non-evaluation-critical published fields such as title, instructions, or display formatting may be edited in place.
+- If any question remains incomplete, the assignment cannot move to `ready_to_publish` or `published`.
+
+### Work Instance Lifecycle Rules
+Work instance states in V1:
+- `assigned`
+- `in_progress`
+- `submitted`
+- `evaluated`
+- `closed`
+
+Rules:
+- `assigned` means the tutor has assigned the work instance and the student has not started work.
+- `evaluated` means tutor-approved evaluation of the remediation submission is complete.
+- If more remediation is needed, the system must create a new student-specific work instance with `work_type = remediation`.
+
+Attempt completeness in V1:
+- `attempt_completeness` should be stored as a separate top-level field on the work instance.
+- Supported values:
+  - `not_attempted`
+  - `partially_attempted`
+  - `fully_attempted`
+- `attempt_completeness` should be system-determined in V1 based on whether assigned questions received student answers or were explicitly left not attempted.
+
+Work instance type rules:
+- `assignment`, `assessment`, and `remediation` share one common lifecycle model in V1.
+- `work_type` affects source-content structure, rationale requirements, and parent visibility semantics, but does not require a separate top-level lifecycle state model.
+- For `remediation`, `target_concepts[]`, `target_diagnostic_dimensions[]`, and `tutor_approved_rationale` are required.
+- For normal `assignment` and `assessment`, those remediation-specific fields may be empty.
+
+### Publishing and Persistence Rules
+- Mappings must exist before an assignment/assessment is published.
+- If a question lacks required mapping/evaluation structure, it is not publishable.
+- If such a gap remains, that question is blocked from evaluation.
+- The system persists the `assignment question instance` and its finalized mappings/definitions.
+- Reusable `question pattern/template` data is persisted for future suggestion and reuse.
+- Reuse is `suggested`, not silently auto-applied.
+- Reusable mappings are saved in-assignment first and can be explicitly promoted to the reusable library.
+
+### Mandatory Question-Level Setup Before Publish
+- `question content`
+- `concept mapping`
+- `diagnostic dimensions`
+
+### Optional Question-Level Setup Before Publish
+- `expected solution path`
+- `explicit accepted alternate methods`
+
+### Diagnostic Model
+The system does not evaluate only for `concept gaps`. During evaluation, AI and tutor must also identify weakness patterns in `logical-step correctness` and `calculation/execution accuracy`.
+Each of these three diagnostic dimensions has its own rubric definition, and those rubric definitions can vary by `subject`, `chapter`, `concept`, and `question`.
+
+Concept status vocabulary in V1:
+- `Met`
+- `Partially Met`
+- `Not Met`
+- `Insufficient Evidence`
+
+Recommended diagnostic dimension vocabularies:
+- `Concept Mastery`: `Met`, `Partially Met`, `Not Met`, `Insufficient Evidence`
+- `Logical-Step Correctness`: `Correct`, `Partially Correct`, `Incorrect`, `Not Attempted`, `Insufficient Evidence`
+- `Calculation/Execution Accuracy`: `No Issue`, `Minor Error`, `Major Error`, `Not Assessable`
+
+### Submission and Evaluation Rules
+- V1 stores only `AI-interpreted evidence` post-submission, not raw OCR/extracted text.
+- AI model version and rubric version are not stored in V1.
+- The system must generate concept-specific judgments backed by question evidence, not a single assignment-wide met/unmet output.
+- AI must produce reasons at both `question level` and `concept level`.
+- During an AI evaluation session, the system evaluates questions in-session and uses the resulting question-level judgments as evidence for concept-level and diagnostic-dimension judgments.
+- The system is not required to persist each question evaluation as an intermediate step during AI reasoning.
+- After the AI evaluation session completes, the system persists the structured question-level outputs, concept-level outputs, and assignment-level summary for tutor review and downstream use.
+
+### Confirmed Submission-Level Fields
+
+| Field | Purpose | Requirement |
+|---|---|---|
+| `submission_id` | Unique submission identifier | System-generated |
+| `work_instance_id` | Parent student-specific work instance reference | Required |
+| `assignment_id` | Parent assignment reference | Required |
+| `student_id` | Student identity | Required |
+| `tutor_id` | Assigned tutor identity | Required |
+| `submitted_artifacts` | Uploaded images/PDF/pages | Required |
+| `submission_status` | Submission lifecycle state | System-managed |
+| `submitted_at` | Submission timestamp | System-generated |
+| `evaluation_status` | Evaluation lifecycle state | System-managed |
+| `finalized_at` | Finalization timestamp | System-generated on finalization |
+
+Submission relationship note:
+- `assignment_id` remains useful for source-content lineage, but the primary operational parent of a submission is `work_instance_id`.
+
+### Confirmed Question Evidence Fields
+
+| Field | Purpose | Requirement |
+|---|---|---|
+| `submission_question_id` | Submission-specific question evidence record | System-generated |
+| `question_id` | Source question reference | Required |
+| `submitted_answer_images[]` | Original student-submitted answer images for the question, preserved in submitted order | Required unless the question is explicitly `not attempted` |
+| `ai_question_evaluation` | AI's structured evaluation object for the question across applicable concepts and diagnostic dimensions | Required |
+| `final_tutor_question_evaluation` | Tutor-approved structured evaluation object for the question across applicable concepts and diagnostic dimensions | Required before finalization |
+| `ai_question_evidence_summary` | AI-generated evidence summary for the question | Required |
+| `linked_concepts[]` | Concepts supported by this question evidence | Required |
+| `linked_dimensions[]` | Diagnostic dimensions evaluated by this question evidence | Required |
+| `tutor_final_question_feedback` | Tutor-approved final feedback for the question | Required before finalization |
+| `evidence_status` | Evidence review state | System-managed |
+
+`ai_question_evaluation` and `final_tutor_question_evaluation` are structured objects, not flat scalar fields. They should capture the formal question-level evaluation result used for concept-level aggregation and tutor review.
+
+Recommended question-level evaluation object shape:
+- `concept_findings[]`
+- `diagnostic_dimension_findings[]`
+- `question_remarks`
+
+Recommended diagnostic dimension finding shape:
+- `dimension_name`
+- `status`
+- `evidence_summary`
+
+### Confirmed Concept Evaluation Fields
+
+| Field | Purpose | Requirement |
+|---|---|---|
+| `concept_evaluation_id` | Unique concept evaluation record | System-generated |
+| `submission_id` | Parent submission reference | Required |
+| `concept_name` | Evaluated concept name | Required |
+| `ai_concept_status` | AI-suggested concept status | Required |
+| `final_concept_status` | Tutor-approved final concept status | Required before finalization |
+| `supporting_question_ids[]` | Question evidence linked to this concept | Required |
+| `ai_concept_reasoning_summary` | AI concept-level reasoning summary | Required |
+| `final_tutor_remarks` | Tutor-approved concept remarks | Required before finalization |
+| `recommended_remediation` | Remediation output for concept/dimension weakness | Optional but expected when weakness exists |
+| `dimension_findings[]` | Dimension-specific findings under this concept | Required |
+
+### Tutor-Approved Evaluation Object Shape
+
+| Object | Fields |
+|---|---|
+| `Assignment Evaluation` | `submission_id`, `student_id`, `assignment_id`, `subject`, `education_board`, `class/grade`, `chapter`, `tutor_id`, `evaluation_status`, `final_overall_summary` |
+| `Concept Evaluation` | `concept_id` / `concept_name`, `concept_status`, `supporting_question_ids`, `supporting_question_evidence_summary`, `diagnostic_dimension_findings[]`, `final_tutor_remarks`, `recommended_remediation_ids` or `remediation_summary` |
+| `Diagnostic Dimension Finding` | `dimension_name`, `status`, `evidence_summary` |
+| `Question Evidence` | `question_id`, `linked_concepts[]`, `linked_dimensions[]`, `ai_question_evaluation`, `final_tutor_question_evaluation`, `ai_evidence_summary`, `tutor_final_question_feedback` |
+
+Example question evidence record:
+
+```json
+{
+  "submission_question_id": "SQ-101",
+  "question_id": "Q-3",
+  "linked_concepts": ["Newton's Second Law"],
+  "linked_dimensions": [
+    "Concept Mastery",
+    "Logical-Step Correctness",
+    "Calculation/Execution Accuracy"
+  ],
+  "ai_question_evaluation": {
+    "concept_findings": [
+      {
+        "concept_name": "Newton's Second Law",
+        "status": "Partially Met"
+      }
+    ],
+    "diagnostic_dimension_findings": [
+      {
+        "dimension_name": "Concept Mastery",
+        "status": "Partially Met",
+        "evidence_summary": "Student selected the correct formula but did not apply net force direction correctly."
+      },
+      {
+        "dimension_name": "Logical-Step Correctness",
+        "status": "Incorrect",
+        "evidence_summary": "Intermediate setup omitted force decomposition."
+      },
+      {
+        "dimension_name": "Calculation/Execution Accuracy",
+        "status": "No Issue",
+        "evidence_summary": "No arithmetic issue in the visible steps."
+      }
+    ],
+    "question_remarks": "Student understands the formula but struggles with structured setup."
+  },
+  "final_tutor_question_evaluation": {
+    "concept_findings": [
+      {
+        "concept_name": "Newton's Second Law",
+        "status": "Partially Met"
+      }
+    ],
+    "diagnostic_dimension_findings": [
+      {
+        "dimension_name": "Concept Mastery",
+        "status": "Partially Met",
+        "evidence_summary": "Formula selection is correct, but force direction understanding is inconsistent."
+      },
+      {
+        "dimension_name": "Logical-Step Correctness",
+        "status": "Partially Correct",
+        "evidence_summary": "Setup is incomplete rather than fully incorrect."
+      },
+      {
+        "dimension_name": "Calculation/Execution Accuracy",
+        "status": "No Issue",
+        "evidence_summary": "No execution error observed."
+      }
+    ],
+    "question_remarks": "Needs practice in setting up net-force problems step by step."
+  },
+  "ai_question_evidence_summary": "AI identified correct formula usage but weak setup reasoning.",
+  "tutor_final_question_feedback": "You chose the right formula, but you need to break the problem into force setup steps before solving.",
+  "evidence_status": "finalized"
+}
+```
