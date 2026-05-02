@@ -1124,6 +1124,130 @@ System interaction notes:
 Open questions:
 - None blocking for `UF-01`.
 
+#### UF-02: Upload Assignment Source and Extract Questions
+
+- `Flow ID`: `UF-02`
+- `Flow Name`: `Upload Assignment Source and Extract Questions`
+- `Persona/Actor`: `Admin/Content Creator`
+- `Trigger`: Admin/content creator chooses to upload assignment source files for a draft assignment within `Content Authoring`.
+
+Preconditions:
+1. User is authenticated.
+2. User has `admin/content creator` permissions.
+3. Target `Assignment` exists.
+4. Target `Assignment` is in `draft` state.
+5. User can access the assignment authoring context in `Content Authoring`.
+
+Main success path:
+1. Admin opens the draft assignment in authoring context.
+2. Admin chooses to upload assignment source for question extraction.
+3. System prompts for one ingestion mode: either a single PDF or multiple images.
+4. Admin uploads a valid source packet for the assignment.
+5. System persists the uploaded source packet to the draft assignment.
+6. System preserves source upload/page order as part of the persisted source context.
+7. System presents the uploaded source for pre-extraction review.
+8. Admin confirms that the uploaded source is correct and explicitly starts extraction.
+9. System creates and starts an asynchronous extraction job for the persisted source packet.
+10. System sets assignment extraction status to `in_progress`.
+11. Admin may remain in context or leave while extraction continues.
+12. System runs AI-based question extraction in the background.
+13. System identifies candidate question units from the uploaded source.
+14. System creates `Question` records immediately for all detected candidate question units.
+15. System assigns each created `Question` an initial `incomplete` state.
+16. System preserves extracted candidate question order separately from source upload/page order.
+17. System flags low-confidence, ambiguous, or numbering-uncertain extraction results for follow-up review.
+18. System attaches the candidate question set to the draft assignment for the next authoring flow.
+19. System sets assignment extraction status to `completed`.
+20. System surfaces that extracted questions are ready for the next review flow.
+21. Flow ends successfully when a non-zero candidate question set exists for review, even if some extracted questions are flagged.
+
+Alternate paths:
+- `AP-01`: Admin uploads a single PDF as the source packet.
+- `AP-02`: Admin uploads multiple images as the source packet.
+- `AP-03`: Admin exits after upload review without starting extraction; uploaded source remains attached for later and extraction status remains `not_started`.
+- `AP-04`: Extraction succeeds partially; candidate question records are created and uncertain results are flagged for review.
+- `AP-05`: Question numbering is missing, inconsistent, or low-confidence, but extraction still produces a usable candidate question set with flags.
+
+Error/exception paths:
+- `EP-01`: User lacks authorization; system blocks access to the flow.
+- `EP-02`: Target assignment does not exist; system blocks upload/extraction.
+- `EP-03`: Target assignment is not in `draft` state; system blocks upload/extraction.
+- `EP-04`: Upload packet is invalid, unsupported, or malformed; system rejects upload and no source packet is persisted.
+- `EP-05`: Admin attempts to mix PDF and image modes in the same ingestion attempt; system rejects the mixed packet and requires one mode only.
+- `EP-06`: AI extraction fails after a valid upload and explicit start; system preserves the uploaded source packet, sets extraction status to `failed`, and allows retry.
+- `EP-07`: AI extraction completes but produces zero candidate question units; system sets extraction status to `failed` and creator must retry extraction or replace the source packet.
+- `EP-08`: Session/authentication fails before successful completion; system blocks continuation until access is restored.
+
+Cancel path:
+- `CP-01`: Admin removes the uploaded source before extraction; system deletes the source packet from the draft assignment, leaves no pending ingestion input, and keeps extraction status `not_started`.
+- `CP-02`: Admin replaces the uploaded source before extraction; system removes the prior source context and uses the new upload as the current source packet.
+- `CP-03`: Admin exits the flow before extraction without removing the source; system keeps the uploaded source attached for later.
+
+Postconditions:
+1. On success, the draft assignment has a persisted source packet and a non-zero candidate `Question` set.
+2. All created candidate `Question` records are in `incomplete` state.
+3. Both source upload/page order and extracted candidate question order are preserved.
+4. Low-confidence or ambiguous extraction results are flagged for the next review flow.
+5. Assignment extraction status is `completed` on success.
+6. On extraction failure, assignment extraction status is `failed` and the uploaded source remains available for retry.
+7. On pre-extraction exit without start, uploaded source remains attached and extraction status is `not_started`.
+8. On pre-extraction removal, no active source packet remains attached to the assignment.
+
+Data created/updated:
+- persisted assignment source packet
+- source packet mode (`PDF` or `multiple images`)
+- source upload/page order
+- assignment extraction status (`not_started`, `in_progress`, `completed`, `failed`)
+- candidate `Question` records
+- `Question.status = incomplete`
+- extracted candidate question order
+- extraction-confidence / ambiguity flags
+- assignment-to-question associations
+
+API/Service touchpoints:
+- authentication/authorization service
+- assignment authoring context service
+- file upload/storage service
+- source persistence service
+- async extraction job orchestration service
+- AI extraction service
+- question creation / persistence service
+
+Business rules applied:
+- Only `admin/content creator` can perform authoring upload and extraction.
+- Upload/extraction requires an existing `draft` assignment.
+- In one ingestion attempt, source mode must be either one PDF or multiple images, not mixed.
+- Uploaded source is persisted before extraction begins.
+- Extraction must be started explicitly by the creator.
+- Extraction runs asynchronously and does not require the creator to remain in the flow.
+- New source upload for the same draft assignment replaces the prior extracted candidate question set rather than merging with it.
+- Candidate question records are created for all detected question units, including low-confidence ones.
+- Success requires a non-zero candidate question set.
+- Missing or weakly recognized question numbering does not block success if usable candidate questions are still produced.
+- Extraction does not make any question `ready`; all start as `incomplete`.
+- Extraction status is a workflow/state indicator for authoring progress, not a `Question` lifecycle state.
+
+Linked IA modules:
+- `Content Authoring`
+- `Question Parsing and Review`
+- `Assignment Metadata Setup`
+
+Linked screens:
+- `TBD after screen inventory is defined`
+
+Linked requirements:
+- `FR-TBD`
+
+System interaction notes:
+- Source upload and AI extraction are intentionally separated to control cost and avoid unintended AI runs.
+- Upload/page order must remain available as provenance even when extracted question order differs.
+- The success state for this flow is candidate-question creation, not perfect extraction quality.
+- The next flow is responsible for review and correction of extracted question boundaries, numbering, and order.
+- Workspace-visible extraction status is sufficient for V1; no additional completion/failure notification commitment is assumed.
+
+Open questions:
+- None blocking for `UF-02`.
+
 ## 10. Functional Requirements
 
 Pending.
