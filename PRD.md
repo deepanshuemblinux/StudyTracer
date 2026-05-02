@@ -1248,6 +1248,130 @@ System interaction notes:
 Open questions:
 - None blocking for `UF-02`.
 
+#### UF-03: Review and Correct Extracted Questions
+
+- `Flow ID`: `UF-03`
+- `Flow Name`: `Review and Correct Extracted Questions`
+- `Persona/Actor`: `Admin/Content Creator`
+- `Trigger`: Admin/content creator chooses to review and correct the extracted question set for a draft assignment after extraction completes.
+
+Preconditions:
+1. User is authenticated.
+2. User has `admin/content creator` permissions.
+3. Target `Assignment` exists.
+4. Target `Assignment` is in `draft` state.
+5. Assignment extraction status is `completed`.
+6. A candidate extracted `Question` set exists for the assignment.
+7. User can access the assignment authoring context in `Content Authoring`.
+
+Main success path:
+1. Admin opens the draft assignment in authoring context after extraction completion.
+2. System surfaces the extracted question set and indicates that question correction is available.
+3. System shows correction-step status as `not_started` or prior saved state.
+4. Admin enters the extracted-question review and correction flow.
+5. System sets correction-step status to `in_progress`.
+6. Admin reviews extracted question boundaries, numbering, order, and content.
+7. Admin performs one or more correction actions as needed:
+   - split an incorrectly combined question unit
+   - merge incorrectly separated question units
+   - reorder questions
+   - renumber questions
+   - delete false-positive extracted questions
+   - add missing questions manually
+   - manually edit question content
+8. System persists working changes to the draft assignment as the admin edits.
+9. System updates the working corrected question set after each saved change.
+10. System treats manually corrected content as the authoritative question content for downstream authoring.
+11. Admin may save progress and leave before final confirmation.
+12. When ready, admin requests final confirmation of the corrected question set.
+13. System validates structural correctness of the corrected question set.
+14. System confirms that:
+   - at least one question exists
+   - each remaining question has authoritative content
+   - each remaining question has final number/order for this stage
+   - no unresolved split/merge placeholder artifacts remain
+15. System marks correction-step status as `completed`.
+16. System preserves the confirmed corrected question set as the authoritative basis for downstream mapping and rubric authoring.
+17. System surfaces the next authoring flow as available.
+18. Flow ends with a corrected, confirmed question set and all questions still in `incomplete` state.
+
+Alternate paths:
+- `AP-01`: Admin saves partial correction progress and exits before confirmation.
+- `AP-02`: Admin manually adds a missing question from scratch.
+- `AP-03`: Admin manually edits extracted question content and makes that edited content authoritative.
+- `AP-04`: Admin completes correction without needing split/merge actions.
+- `AP-05`: Admin completes correction after resolving numbering/order issues only.
+
+Error/exception paths:
+- `EP-01`: User lacks authorization; system blocks access to the flow.
+- `EP-02`: Target assignment does not exist; system blocks correction.
+- `EP-03`: Target assignment is not in `draft` state; system blocks correction.
+- `EP-04`: Extraction status is not `completed`; system blocks correction until extraction is complete.
+- `EP-05`: No candidate extracted question set exists; system blocks correction and routes back to extraction.
+- `EP-06`: Admin attempts final confirmation when the corrected question set is structurally invalid; system blocks confirmation and identifies unresolved issues.
+- `EP-07`: Working change persistence fails during editing; system must surface failure and prevent silent loss of correction work.
+- `EP-08`: Session/authentication fails before successful completion; system blocks continuation until access is restored.
+
+Cancel path:
+- `CP-01`: Admin exits after save-progress; system keeps the current corrected working set and correction-step status as `in_progress`.
+- `CP-02`: Admin chooses to return to re-extraction; system warns that the current corrected working set will be discarded as the active set.
+- `CP-03`: Admin confirms return to re-extraction; system discards the current corrected working set as the active set and routes back to source replacement/re-extraction.
+
+Postconditions:
+1. On success, the assignment has a confirmed corrected question set ready for downstream mapping/rubric authoring.
+2. All questions remain in `incomplete` state after this flow.
+3. Manually corrected question content is authoritative for downstream flows.
+4. Correction-step status is `completed` on success.
+5. On save-progress exit, working corrections remain persisted and correction-step status remains `in_progress`.
+6. On confirmed return to re-extraction, the corrected working set is discarded as the active set.
+
+Data created/updated:
+- corrected working question set
+- authoritative question content
+- question numbering/order
+- split/merge results
+- manually added questions
+- deleted false-positive questions
+- correction-step status (`not_started`, `in_progress`, `completed`)
+
+API/Service touchpoints:
+- authentication/authorization service
+- assignment authoring context service
+- extracted question retrieval service
+- question update / persistence service
+- correction-step status persistence service
+
+Business rules applied:
+- Only `admin/content creator` can perform extracted-question correction.
+- Correction is blocked unless extraction status is `completed` and a candidate question set exists.
+- Manual question creation from scratch is allowed in this flow.
+- Manual edits to question content become authoritative.
+- Working changes persist during editing and support save-progress.
+- Final confirmation requires structural validity of the corrected question set.
+- Correction completion does not make any question `ready`; all remain `incomplete`.
+- Returning to re-extraction is destructive to the active corrected working set and requires explicit warning.
+- Completion of this flow surfaces the next authoring flow but does not auto-start downstream AI suggestion generation.
+- Correction-step status is a workflow indicator, not a `Question` lifecycle state.
+
+Linked IA modules:
+- `Content Authoring`
+- `Question Parsing and Review`
+
+Linked screens:
+- `TBD after screen inventory is defined`
+
+Linked requirements:
+- `FR-TBD`
+
+System interaction notes:
+- This flow corrects extraction output only and does not include concept mapping or rubric definition.
+- The authoritative question artifact for downstream authoring is established here through confirmed correction.
+- Save-progress is essential because correction can be multi-step and non-trivial.
+- Re-extraction is allowed, but only through an explicit destructive decision.
+
+Open questions:
+- None blocking for `UF-03`.
+
 ## 10. Functional Requirements
 
 Pending.
